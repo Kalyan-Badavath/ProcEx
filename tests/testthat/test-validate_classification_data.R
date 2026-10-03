@@ -93,3 +93,102 @@ test_that("small classes produce warning status", {
   expect_true(result$valid)
   expect_equal(result$status, "VALID_WITH_WARNINGS")
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+test_that("empty data is rejected", {
+
+  truth <- character(0)
+
+  probs <- data.frame(
+    A = numeric(0),
+    B = numeric(0),
+    C = numeric(0)
+  )
+
+  result <- validate_classification_data(truth, probs)
+
+  expect_false(result$valid)
+})
+
+
+test_that("missing true labels are rejected", {
+
+  truth <- c("A", "B", NA, "C")
+
+  probs <- data.frame(
+    A = c(0.8, 0.1, 0.2, 0.1),
+    B = c(0.1, 0.8, 0.2, 0.2),
+    C = c(0.1, 0.1, 0.6, 0.7)
+  )
+
+  result <- validate_classification_data(truth, probs)
+
+  expect_false(result$valid)
+})
+
+
+test_that("duplicate probability column names are rejected", {
+
+  truth <- c("A", "B", "C")
+
+  probs <- data.frame(
+    A = c(0.8, 0.1, 0.2),
+    B = c(0.1, 0.7, 0.2),
+    C = c(0.1, 0.2, 0.6),
+    check.names = FALSE
+  )
+
+  names(probs) <- c("A", "A", "C")
+
+  result <- validate_classification_data(truth, probs)
+
+  expect_false(result$valid)
+})
+
+
+test_that("probability matrix without column names is rejected", {
+
+  truth <- c("A", "B", "C")
+
+  probs <- matrix(
+    c(
+      0.8, 0.1, 0.1,
+      0.1, 0.8, 0.1,
+      0.2, 0.2, 0.6
+    ),
+    nrow = 3,
+    byrow = TRUE
+  )
+
+  result <- validate_classification_data(truth, probs)
+
+  expect_false(result$valid)
+})
+
+
+test_that("non-numeric probability columns are rejected", {
+
+  truth <- c("A", "B", "C")
+
+  probs <- data.frame(
+    A = c(0.8, 0.1, 0.2),
+    B = c(0.1, 0.7, 0.2),
+    C = c("0.1", "0.2", "0.6")
+  )
+
+  result <- validate_classification_data(truth, probs)
+
+  expect_false(result$valid)
+})
