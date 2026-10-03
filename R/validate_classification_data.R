@@ -1,13 +1,30 @@
-validate_classification_data <- function(truth, probs) {
+#' Validate multiclass classification data
+#'
+#' Checks whether true class labels and predicted class probabilities
+#' are suitable for multiclass analysis.
+#'
+#' @param truth A vector or factor containing the true class labels.
+#' @param probs A data frame or matrix containing predicted probabilities
+#'   for each class.
+#' @param min_class_n Minimum number of observations expected in each class.
+#' @param imbalance_threshold Minimum class proportion before an imbalance
+#'   warning is generated.
+#'
+#' @return A list containing validation status, errors, warnings,
+#'   class counts, and class proportions.
+#'
+#' @export
+validate_classification_data <- function(
+    truth,
+    probs,
+    min_class_n = 10,
+    imbalance_threshold = 0.05
+) {
 
   errors <- character()
+  warnings <- character()
 
-  # -------------------------
-  # Checkpoint 2
   # Basic input validation
-  # -------------------------
-
-  # Check truth input
   if (!is.atomic(truth) || !is.null(dim(truth))) {
     errors <- c(
       errors,
@@ -15,7 +32,6 @@ validate_classification_data <- function(truth, probs) {
     )
   }
 
-  # Check probability input
   if (!is.data.frame(probs) && !is.matrix(probs)) {
     errors <- c(
       errors,
@@ -23,10 +39,8 @@ validate_classification_data <- function(truth, probs) {
     )
   }
 
-  # Continue only if probs has correct structure
   if (is.data.frame(probs) || is.matrix(probs)) {
 
-    # Check number of observations
     if (length(truth) != nrow(probs)) {
       errors <- c(
         errors,
@@ -34,7 +48,6 @@ validate_classification_data <- function(truth, probs) {
       )
     }
 
-    # Check numeric probability columns
     if (is.data.frame(probs)) {
 
       numeric_cols <- vapply(
@@ -51,7 +64,6 @@ validate_classification_data <- function(truth, probs) {
       }
     }
 
-    # Check numeric matrix
     if (is.matrix(probs) && !is.numeric(probs)) {
       errors <- c(
         errors,
@@ -60,14 +72,9 @@ validate_classification_data <- function(truth, probs) {
     }
   }
 
-  # -------------------------
-  # Checkpoint 3
   # Multiclass validation
-  # -------------------------
-
   classes <- unique(as.character(truth))
 
-  # Must contain at least 3 classes
   if (length(classes) < 3) {
     errors <- c(
       errors,
@@ -75,7 +82,6 @@ validate_classification_data <- function(truth, probs) {
     )
   }
 
-  # Probability columns must match classes
   if (is.data.frame(probs) || is.matrix(probs)) {
 
     if (is.null(colnames(probs))) {
@@ -97,39 +103,78 @@ validate_classification_data <- function(truth, probs) {
     }
   }
 
-  # -------------------------
-  # Return result
-  # -------------------------
+  # Probability validation
+  if (
+    (is.data.frame(probs) || is.matrix(probs)) &&
+    all(vapply(as.data.frame(probs), is.numeric, logical(1)))
+  ) {
 
+    if (any(!is.finite(as.matrix(probs)))) {
+      errors <- c(
+        errors,
+        "Probability values cannot contain NA, NaN, or Inf."
+      )
+    }
+
+    if (any(probs < 0 | probs > 1, na.rm = TRUE)) {
+      errors <- c(
+        errors,
+        "Probability values must be between 0 and 1."
+      )
+    }
+
+    row_totals <- rowSums(probs, na.rm = TRUE)
+
+    if (any(abs(row_totals - 1) > 1e-6)) {
+      errors <- c(
+        errors,
+        "Probabilities for each observation must sum to 1."
+      )
+    }
+  }
+
+  # Reliability warnings
+  class_counts <- table(truth)
+  class_proportions <- prop.table(class_counts)
+
+  if (any(class_counts < min_class_n)) {
+    warnings <- c(
+      warnings,
+      paste0(
+        "At least one class has fewer than ",
+        min_class_n,
+        " observations."
+      )
+    )
+  }
+
+  if (any(class_proportions < imbalance_threshold)) {
+    warnings <- c(
+      warnings,
+      paste0(
+        "At least one class represents less than ",
+        imbalance_threshold * 100,
+        "% of the data."
+      )
+    )
+  }
+
+  # Overall status
+  if (length(errors) > 0) {
+    status <- "INVALID"
+  } else if (length(warnings) > 0) {
+    status <- "VALID_WITH_WARNINGS"
+  } else {
+    status <- "VALID"
+  }
+
+  # Return result
   list(
     valid = length(errors) == 0,
-    errors = errors
+    status = status,
+    errors = errors,
+    warnings = warnings,
+    class_counts = class_counts,
+    class_proportions = class_proportions
   )
 }
-
-
-
-
-
-
-truth_two <- c("A", "B", "A")
-
-probs_two <- data.frame(
-  A = c(0.8, 0.2, 0.7),
-  B = c(0.2, 0.8, 0.3)
-)
-
-validate_classification_data(truth_two, probs_two)
-
-
-
-
-truth_wrong <- c("A", "B", "C")
-
-probs_wrong <- data.frame(
-  A = c(0.8, 0.1, 0.2),
-  B = c(0.1, 0.7, 0.2),
-  D = c(0.1, 0.2, 0.6)
-)
-
-validate_classification_data(truth_wrong, probs_wrong)
