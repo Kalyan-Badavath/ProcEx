@@ -17,16 +17,18 @@ validate_classification_data(
 \item{probs}{A data frame or matrix containing predicted probabilities
 for each class.}
 
-\item{min_class_n}{Minimum number of observations expected in each class.}
+\item{min_class_n}{Minimum number of observations expected in each class.
+Classes below this value generate a warning.}
 
 \item{imbalance_threshold}{Minimum class proportion before an imbalance
 warning is generated.}
 }
 \value{
-A list containing validation status, errors, warnings,
-class counts, and class proportions.
+A list containing the validation status, errors, warnings,
+number of observations, number of classes, class counts, and
+class proportions.
 }
 \description{
 Checks whether true class labels and predicted class probabilities
-are suitable for multiclass analysis.
+are suitable for multiclass classification analysis.
 }
