@@ -8,7 +8,7 @@ validate_classification_data(
   truth,
   probs,
   min_class_n = 10,
-  imbalance_threshold = 0.05
+  imbalance_ratio = 10
 )
 }
 \arguments{
@@ -20,8 +20,8 @@ for each class.}
 \item{min_class_n}{Minimum number of observations expected in each class.
 Classes below this value generate a warning.}
 
-\item{imbalance_threshold}{Minimum class proportion before an imbalance
-warning is generated.}
+\item{imbalance_ratio}{Maximum allowed ratio between the largest and
+smallest class. Ratios above this value generate a warning.}
 }
 \value{
 A list containing the validation status, errors, warnings,

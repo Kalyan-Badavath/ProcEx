@@ -196,6 +196,38 @@ test_that("small classes produce warning status", {
 })
 
 
+test_that("class imbalance ratio produces warning", {
+
+  truth <- c(
+    rep("A", 100),
+    rep("B", 20),
+    rep("C", 5)
+  )
+
+  probs <- data.frame(
+    A = rep(1/3, 125),
+    B = rep(1/3, 125),
+    C = rep(1/3, 125)
+  )
+
+  result <- validate_classification_data(
+    truth,
+    probs,
+    min_class_n = 1,
+    imbalance_ratio = 10
+  )
+
+  expect_true(result$valid)
+  expect_equal(result$status, "VALID_WITH_WARNINGS")
+
+  expect_true(any(grepl(
+    "Class imbalance ratio is",
+    result$warnings,
+    fixed = TRUE
+  )))
+})
+
+
 test_that("empty data is rejected", {
 
   truth <- character(0)
@@ -340,7 +372,7 @@ test_that("invalid min_class_n is rejected", {
 })
 
 
-test_that("invalid imbalance_threshold is rejected", {
+test_that("invalid imbalance_ratio is rejected", {
 
   truth <- c("A", "B", "C")
 
@@ -353,14 +385,14 @@ test_that("invalid imbalance_threshold is rejected", {
   result <- validate_classification_data(
     truth,
     probs,
-    imbalance_threshold = 1.5
+    imbalance_ratio = 0.5
   )
 
   expect_false(result$valid)
   expect_equal(result$status, "INVALID")
 
   expect_true(any(grepl(
-    "imbalance_threshold must be a single value between 0 and 1.",
+    "imbalance_ratio must be a single numeric value greater than or equal to 1.",
     result$errors,
     fixed = TRUE
   )))

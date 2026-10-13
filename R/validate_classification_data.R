@@ -8,8 +8,8 @@
 #'   for each class.
 #' @param min_class_n Minimum number of observations expected in each class.
 #'   Classes below this value generate a warning.
-#' @param imbalance_threshold Minimum class proportion before an imbalance
-#'   warning is generated.
+#' @param imbalance_ratio Maximum allowed ratio between the largest and
+#'   smallest class. Ratios above this value generate a warning.
 #'
 #' @return A list containing the validation status, errors, warnings,
 #'   number of observations, number of classes, class counts, and
@@ -20,7 +20,7 @@ validate_classification_data <- function(
     truth,
     probs,
     min_class_n = 10,
-    imbalance_threshold = 0.05
+    imbalance_ratio = 10
 ) {
 
   errors <- character()
@@ -41,15 +41,14 @@ validate_classification_data <- function(
   }
 
   if (
-    length(imbalance_threshold) != 1 ||
-    !is.numeric(imbalance_threshold) ||
-    !is.finite(imbalance_threshold) ||
-    imbalance_threshold <= 0 ||
-    imbalance_threshold >= 1
+    length(imbalance_ratio) != 1 ||
+    !is.numeric(imbalance_ratio) ||
+    !is.finite(imbalance_ratio) ||
+    imbalance_ratio < 1
   ) {
     errors <- c(
       errors,
-      "imbalance_threshold must be a single value between 0 and 1."
+      "imbalance_ratio must be a single numeric value greater than or equal to 1."
     )
   }
 
@@ -88,6 +87,7 @@ validate_classification_data <- function(
 
     valid_truth <- truth[!is.na(truth)]
 
+    # Only classes actually observed in the data
     classes <- unique(as.character(valid_truth))
 
     if (length(classes) < 3) {
@@ -97,7 +97,8 @@ validate_classification_data <- function(
       )
     }
 
-    class_counts <- table(valid_truth)
+    # Count only observed classes
+    class_counts <- table(as.character(valid_truth))
 
     if (length(class_counts) > 0) {
       class_proportions <- prop.table(class_counts)
@@ -220,6 +221,7 @@ validate_classification_data <- function(
 
   # Reliability warnings
 
+  # Small class warning
   if (
     length(class_counts) > 0 &&
     is.numeric(min_class_n) &&
@@ -240,22 +242,28 @@ validate_classification_data <- function(
     }
   }
 
+  # Class imbalance warning
   if (
-    length(class_proportions) > 0 &&
-    is.numeric(imbalance_threshold) &&
-    length(imbalance_threshold) == 1 &&
-    is.finite(imbalance_threshold) &&
-    imbalance_threshold > 0 &&
-    imbalance_threshold < 1
+    length(class_counts) > 0 &&
+    is.numeric(imbalance_ratio) &&
+    length(imbalance_ratio) == 1 &&
+    is.finite(imbalance_ratio) &&
+    imbalance_ratio >= 1
   ) {
 
-    if (any(class_proportions < imbalance_threshold)) {
+    observed_ratio <-
+      max(as.numeric(class_counts)) /
+      min(as.numeric(class_counts))
+
+    if (observed_ratio > imbalance_ratio) {
       warnings <- c(
         warnings,
         paste0(
-          "At least one class represents less than ",
-          imbalance_threshold * 100,
-          "% of the data."
+          "Class imbalance ratio is ",
+          round(observed_ratio, 2),
+          ", which exceeds the threshold of ",
+          imbalance_ratio,
+          "."
         )
       )
     }
