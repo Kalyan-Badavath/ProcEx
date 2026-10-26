@@ -52,7 +52,7 @@ mc_auc_compare <- function(response,
                            conf.level = 0.95,
                            seed       = NULL) {
 
-  # ---- basic input checks -------------------------------------------------
+  # basic input checks
   stopifnot(is.matrix(predictor1) || is.data.frame(predictor1))
   stopifnot(is.matrix(predictor2) || is.data.frame(predictor2))
   predictor1 <- as.matrix(predictor1)
@@ -71,19 +71,19 @@ mc_auc_compare <- function(response,
   response <- factor(response, levels = levels)
   if (!is.null(seed)) set.seed(seed)
 
-  # ---- observed difference on the full data -------------------------------
+  # observed difference
   auc1 <- as.numeric(suppressMessages(
     pROC::multiclass.roc(response, predictor1, levels = levels))$auc)
   auc2 <- as.numeric(suppressMessages(
     pROC::multiclass.roc(response, predictor2, levels = levels))$auc)
   observed_difference <- auc1 - auc2
 
-  # ---- paired stratified bootstrap ----------------------------------------
+  #  paired stratified bootstrap
   boot_differences <- rep(NA_real_, boot.n)
 
   for (b in seq_len(boot.n)) {
 
-    # resample WITHIN each class, so class sizes never change
+    # resample WITHIN each class
     boot_index <- unlist(
       lapply(levels, function(class_name) {
         class_index <- which(response == class_name)
@@ -92,7 +92,6 @@ mc_auc_compare <- function(response,
       use.names = FALSE
     )
 
-    # the SAME rows go to both models -- this is what makes it paired
     boot_truth <- response[boot_index]
 
     boot_differences[b] <- tryCatch({
@@ -104,7 +103,6 @@ mc_auc_compare <- function(response,
     }, error = function(e) NA_real_)
   }
 
-  # ---- summarise ----------------------------------------------------------
   ok       <- boot_differences[!is.na(boot_differences)]
   n_ok     <- length(ok)
   n_failed <- boot.n - n_ok
@@ -149,7 +147,6 @@ mc_auc_compare <- function(response,
 #' @export
 print.mc_compare <- function(x, ...) {
   cat("\nMulticlass AUC comparison (paired stratified bootstrap)\n")
-  cat("------------------------------------------------------\n")
   cat(sprintf("  Model 1 AUC : %.4f\n", x$auc1))
   cat(sprintf("  Model 2 AUC : %.4f\n", x$auc2))
   cat(sprintf("  Difference  : %.4f\n", x$difference))
