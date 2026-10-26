@@ -190,7 +190,7 @@ handle_missing <- function(
         fill_value <- if (method == "mean") {
           mean(observed_values)
         } else {
-          median(observed_values)
+          stats::median(observed_values)
         }
 
         x$probs[missing_j, j] <- fill_value
