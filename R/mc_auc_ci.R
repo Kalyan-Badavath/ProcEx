@@ -1,3 +1,8 @@
+#' Multiclass AUC confidence interval
+#'
+#' @export
+
+
 # 3. Define mc_auc_ci()
 
 mc_auc_ci <- function(truth,
