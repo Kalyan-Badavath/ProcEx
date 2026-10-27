@@ -69,14 +69,13 @@ profile_outliers <- function(truth, probs,
     score = numeric(),
     reason = character()
   )
-
   
   for (column in names(probs)) {
     values <- probs[[column]]
     
     if (is.null(lower)) {
-      q1 <- as.numeric(quantile(values, 0.25))
-      q3 <- as.numeric(quantile(values, 0.75))
+      q1 <- as.numeric(stats::quantile(values, 0.25))
+      q3 <- as.numeric(stats::quantile(values, 0.75))
       iqr_value <- q3 - q1
       
       lower_limit <- q1 - iqr_multiplier * iqr_value
@@ -192,7 +191,10 @@ profile_auc_influence <- function(truth, probs,
       next
     }
     
-    new_auc <- auc_value(truth[keep], probs[keep, , drop = FALSE])
+    new_auc <- auc_value(
+      truth[keep],
+      probs[keep, , drop = FALSE]
+    )
     
     results <- rbind(
       results,
@@ -206,6 +208,9 @@ profile_auc_influence <- function(truth, probs,
     )
   }
   
-  results[order(-abs(results$auc_change)), , drop = FALSE]
+  results[
+    order(-abs(results$auc_change)),
+    ,
+    drop = FALSE
+  ]
 }
-
