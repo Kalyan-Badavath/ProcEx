@@ -1,6 +1,8 @@
 # ProcEx - Outlier Profiling
 # Supports IQR detection and custom score limits
-
+#' Profile multiclass prediction outliers
+#'
+#' @export
 profile_outliers <- function(truth, probs,
                              iqr_multiplier = 1.5,
                              lower = NULL,
