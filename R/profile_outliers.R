@@ -1,7 +1,10 @@
-# ProcEx - Outlier Profiling
-# Supports IQR detection and custom score limits
 #' Profile multiclass prediction outliers
 #'
+#' @param truth True class labels.
+#' @param probs Predicted class probabilities.
+#' @param iqr_multiplier Multiplier used for IQR-based outlier detection.
+#' @param lower Optional custom lower probability limit.
+#' @param upper Optional custom upper probability limit.
 #' @export
 profile_outliers <- function(truth, probs,
                              iqr_multiplier = 1.5,
