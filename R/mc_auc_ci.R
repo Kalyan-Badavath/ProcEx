@@ -139,13 +139,13 @@ mc_auc_ci <- function(truth,
   }
   
   # Bootstrap standard error
-  bootstrap_se <- sd(successful_values)
+  bootstrap_se <- stats::sd(successful_values)
   
   # Calculate alpha
   alpha <- 1 - conf_level
   
   # Percentile bootstrap confidence interval
-  ci <- quantile(
+  ci <- stats::quantile(
     successful_values,
     probs = c(alpha / 2, 1 - alpha / 2),
     names = FALSE
