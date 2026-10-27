@@ -2,6 +2,40 @@
 
 ProcEx is an R package for evaluating multiclass classification models using ROC analysis, Hand–Till multiclass AUC, bootstrap confidence intervals, model comparison, data validation, missing-value handling, and prediction outlier detection.
 
+## Installation
+
+ProcEx can be installed directly from GitHub.
+
+First, install the `remotes` package if it is not already installed:
+
+```r
+install.packages("remotes")
+```
+
+Install ProcEx from GitHub:
+
+```r
+remotes::install_github("Kalyan-Badavath/ProcEx")
+```
+
+Load the package:
+
+```r
+library(ProcEx)
+```
+
+To confirm that the package has been installed successfully:
+
+```r
+packageVersion("ProcEx")
+```
+
+The exported ProcEx functions can be viewed using:
+
+```r
+getNamespaceExports("ProcEx")
+```
+
 ## Main Functions
 
 ProcEx provides six main user-facing functions:
