@@ -41,7 +41,7 @@ An object of class \code{mc_roc}; see the "Object structure" section.
 }
 \description{
 Computes the Hand & Till (2001) multiclass AUC with
-\code{\link[pROC:multiclass]{pROC::multiclass.roc()}} and stores everything the other ProcEx functions
+\code{\link[pROC:multiclass.roc]{pROC::multiclass.roc()}} and stores everything the other ProcEx functions
 need in a single \code{mc_roc} object. Every other function
 (\code{\link[=handle_missing]{handle_missing()}}, \code{mc_auc_ci()}, \code{mc_auc_compare()}, \code{plot()}) receives
 this object.
