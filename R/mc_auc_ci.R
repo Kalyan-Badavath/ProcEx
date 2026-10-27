@@ -1,7 +1,11 @@
 #' Multiclass AUC confidence interval
 #'
 #' @export
-
+#' @param truth True class labels.
+#' @param probabilities Predicted class probabilities, one column per class.
+#' @param n_boot Number of bootstrap replicates.
+#' @param conf_level Confidence level for the interval.
+#' @param seed Optional random seed for reproducibility.
 
 # 3. Define mc_auc_ci()
 
