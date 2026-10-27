@@ -2,8 +2,7 @@ Package: ProcEx
 Title: Multiclass ROC, AUC, and Reliability AnalysisVersion: 0.0.0.9000
 Authors@R:
     person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: MIT + file LICENSE
+Description: Tools for evaluating multiclass classification models using ROC analysis, Hand-Till multiclass AUC, bootstrap confidence intervals, model comparison, data validation, missing-value handling, and prediction outlier detection.License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.1.0
