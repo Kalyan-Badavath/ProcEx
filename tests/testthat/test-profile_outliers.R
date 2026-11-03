@@ -120,31 +120,31 @@ test_that("Flag option identifies outliers", {
     truth, probs,
     action = "flag"
   )
-
+  
   expect_true(is.data.frame(result))
 })
 
 # Test the remove option
 test_that("Remove option removes flagged observations", {
   flagged <- profile_outliers(truth, probs, action = "flag")
-
+  
   cleaned <- profile_outliers(
     truth, probs,
     action = "remove"
   )
-
+  
   expected_removed <- length(unique(flagged$observation))
-
+  
   expect_equal(
     length(cleaned$removed_observations),
     expected_removed
   )
-
+  
   expect_equal(
     nrow(cleaned$probs),
     nrow(probs) - expected_removed
   )
-
+  
   expect_equal(
     length(cleaned$truth),
     nrow(cleaned$probs)
@@ -153,13 +153,14 @@ test_that("Remove option removes flagged observations", {
 
 # Test the keep option
 test_that("Keep option retains all observations", {
-  kept <- profile_outliers(
-    truth, probs,
-    action = "keep"
-  )
-
-  expect_equal(nrow(kept$probs), nrow(probs))
-  expect_equal(length(kept$truth), length(truth))
+  truth <- factor(rep(c("A", "B", "C"), each = 20))
+  probs <- matrix(1/3, nrow = 60, ncol = 3)
+  colnames(probs) <- c("A", "B", "C")
+  
+  kept <- profile_outliers(truth, probs, action = "keep")
+  
+  expect_equal(nrow(kept$probs), 60)
+  expect_equal(length(kept$truth), 60)
 })
 
 # Test invalid action
@@ -172,9 +173,9 @@ test_that("Invalid action produces an error", {
 # Test AUC influence output
 test_that("AUC influence returns expected columns", {
   result <- profile_auc_influence(truth, probs)
-
+  
   expect_true(is.data.frame(result))
-
+  
   expect_true(all(c(
     "observation",
     "actual_class",
@@ -184,9 +185,9 @@ test_that("AUC influence returns expected columns", {
   ) %in% names(result)))
 })
 test_that("AUC influence correctly detects improvement", {
-
+  
   truth <- factor(rep(c("A", "B", "C"), each = 10))
-
+  
   probs <- rbind(
     matrix(rep(c(0.90, 0.05, 0.05), 10),
            ncol = 3, byrow = TRUE),
@@ -195,12 +196,12 @@ test_that("AUC influence correctly detects improvement", {
     matrix(rep(c(0.05, 0.05, 0.90), 10),
            ncol = 3, byrow = TRUE)
   )
-
+  
   colnames(probs) <- c("A", "B", "C")
   probs[5, ] <- c(0.01, 0.98, 0.01)
-
+  
   result <- profile_auc_influence(truth, probs)
-
+  
   expect_equal(result$original_auc[1], 0.95)
   expect_equal(result$auc_without[1], 1)
   expect_equal(result$auc_change[1], 0.05, tolerance = 1e-8)
