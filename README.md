@@ -236,11 +236,11 @@ The two models can then be compared:
 
 ```r
 compare_result <- mc_auc_compare(
-  response = truth_test,
-  predictor1 = probs1,
-  predictor2 = probs2,
-  boot.n = 200,
-  conf.level = 0.95,
+  truth = truth_test,
+  probs1 = probs1,
+  probs2 = probs2,
+  n_boot = 200,
+  conf_level = 0.95,
   seed = 42
 )
 
@@ -250,11 +250,15 @@ compare_result
 Example result:
 
 ```text
-Model 1 AUC: 0.9962
-Model 2 AUC: 0.9949
-Difference: 0.0013
-95% CI: 0.0008 to 0.0018
-Bootstrap SE: 0.0003
-Successful bootstrap replicates: 200
-Failed bootstrap replicates: 0
+Multiclass AUC comparison (paired stratified bootstrap)
+  Model 1 AUC  : 0.9962
+  Model 2 AUC  : 0.9949
+  Difference   : 0.0013
+  95% CI       : 0.0008 to 0.0018
+  Bootstrap SE : 0.0003
+  p-value      : < 0.0050
+  Replicates   : 200 successful, 0 failed
 ```
+
+A p-value smaller than 1 / `n_boot` is shown as `< 1/n_boot`, because the
+bootstrap cannot measure anything smaller.
