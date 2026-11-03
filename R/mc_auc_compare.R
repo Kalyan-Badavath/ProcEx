@@ -1,134 +1,166 @@
-#' Compare two multiclass AUCs using a paired stratified bootstrap
+#' Compares the Hand & Till multiclass AUC of two classification models
+#' using a paired stratified bootstrap to quantify uncertainty in their
+#' AUC difference.
+#' Both models must be scored on the same observations, in the same order.
+#' Each bootstrap replicate resamples observations within each class and
+#' applies the SAME sampled rows to both models. This preserves the paired
+#' structure because both models are evaluated on identical bootstrap samples.
 #'
-#' Tests whether two classification models differ in their Hand-Till
-#' multiclass AUC. pROC computes the multiclass AUC but its
-#' documentation states that comparison tests are not implemented for
-#' multiclass ROC objects.
+#' #' Hand & Till multiclass AUC values are computed using
+#' [pROC::multiclass.roc()] for the observed data and each bootstrap
+#' replicate, consistent with the AUC calculation used by [mc_roc()].
 #'
-#' Both models must be scored on the same observations, in the same
-#' order. Each bootstrap replicate resamples observations within each
-#' class (so class sizes are preserved) and applies the same resampled
-#' rows to both models, which keeps the comparison paired.
 #'
-#' @param response A factor or vector of true class labels. At least
-#'   three classes are required.
-#' @param predictor1 A matrix or data frame of predicted class
-#'   probabilities from the first model, with one row per observation
-#'   and one column per class.
-#' @param predictor2 A matrix or data frame of predicted class
-#'   probabilities from the second model, scored on the same
-#'   observations in the same order as \code{predictor1}.
-#' @param levels The full set of class labels. Defaults to the levels
-#'   of \code{response}.
-#' @param boot.n Number of bootstrap replicates. Default 1000.
-#' @param conf.level Confidence level for the interval. Default 0.95.
-#' @param seed Optional integer used to make the bootstrap
-#'   reproducible. Default \code{NULL}.
+#' @param truth True class labels (factor or character), or an `mc_roc`
+#'   object. At least three classes are required.
+#' @param probs1 Predicted class probabilities from the first model: a
+#'   numeric matrix or data frame, one row per observation and one column
+#'   per class, column names matching the class labels. May also be an
+#'   `mc_roc` object. When `truth` is an `mc_roc` object, this argument may
+#'   instead provide the predictions or `mc_roc` object for the second model.
+#' @param probs2 Predicted class probabilities from the second model, or a
+#'   second `mc_roc` object, scored on the same observations in the same
+#'   order as `probs1`.
+#' @param levels The full set of class labels. Defaults to the levels of
+#'   `truth`.
+#' @param n_boot Number of bootstrap replicates. A positive whole number.
+#'   Default 1000.
+#' @param conf_level Confidence level for the interval, strictly between 0
+#'   and 1. Default 0.95.
+#' @param seed Optional integer, for a reproducible bootstrap.
 #'
-#' @return An object of class \code{mc_compare}: a list containing the
-#'   two AUCs, their observed difference, the confidence interval
-#'   bounds, the bootstrap standard error, a two-sided bootstrap
-#'   p-value, the confidence level, the numbers of successful and
-#'   failed replicates, and the vector of bootstrap differences.
+#' @return An object of class `mc_compare`, a list containing:
+#'   \item{auc1, auc2}{the two multiclass AUCs}
+#'   \item{difference}{auc1 - auc2 on the observed data}
+#'   \item{lower, upper}{confidence interval for the difference}
+#'   \item{se}{bootstrap standard error of the difference}
+#'   \item{p_value}{two-sided bootstrap p-value}
+#'   \item{conf_level}{the confidence level used}
+#'   \item{n_boot, n_failed}{successful and failed replicates}
+#'   \item{replicates}{the bootstrap differences}
 #'
 #' @examples
 #' \donttest{
 #' set.seed(1)
-#' fit_strong <- nnet::multinom(Species ~ ., data = iris, trace = FALSE)
-#' fit_weak   <- nnet::multinom(Species ~ Sepal.Length + Sepal.Width,
-#'                              data = iris, trace = FALSE)
+#' fit1 <- nnet::multinom(Species ~ Petal.Length + Petal.Width,
+#'                        data = iris, trace = FALSE)
+#' fit2 <- nnet::multinom(Species ~ Sepal.Length + Sepal.Width,
+#'                        data = iris, trace = FALSE)
 #' mc_auc_compare(iris$Species,
-#'                stats::predict(fit_strong, type = "probs"),
-#'                stats::predict(fit_weak,   type = "probs"),
-#'                boot.n = 100, seed = 42)
+#'                predict(fit1, type = "probs"),
+#'                predict(fit2, type = "probs"),
+#'                n_boot = 100, seed = 42)
 #' }
 #'
+#' @seealso [mc_auc_ci()] for one model, [mc_roc()] to build the object.
 #' @export
-mc_auc_compare <- function(response,
-                           predictor1,
-                           predictor2,
-                           levels     = base::levels(as.factor(response)),
-                           boot.n     = 1000,
-                           conf.level = 0.95,
+mc_auc_compare <- function(truth,
+                           probs1,
+                           probs2,
+                           levels     = NULL,
+                           n_boot     = 1000,
+                           conf_level = 0.95,
                            seed       = NULL) {
 
-  # basic input checks
-  stopifnot(is.matrix(predictor1) || is.data.frame(predictor1))
-  stopifnot(is.matrix(predictor2) || is.data.frame(predictor2))
-  predictor1 <- as.matrix(predictor1)
-  predictor2 <- as.matrix(predictor2)
+  if (!is.numeric(n_boot) || length(n_boot) != 1 || is.na(n_boot) ||
+      n_boot < 1 || n_boot != round(n_boot))
+    stop("n_boot must be a single positive integer.", call. = FALSE)
 
-  if (nrow(predictor1) != length(response))
-    stop("predictor1 has ", nrow(predictor1), " rows but response has ",
-         length(response), " values.")
-  if (nrow(predictor2) != length(response))
-    stop("predictor2 has ", nrow(predictor2), " rows but response has ",
-         length(response), " values.")
+  if (!is.numeric(conf_level) || length(conf_level) != 1 ||
+      is.na(conf_level) || conf_level <= 0 || conf_level >= 1)
+    stop("conf_level must be a single value between 0 and 1.", call. = FALSE)
+
+  # An mc_roc object may stand in for truth, probs1 or probs2. Only its
+  # stored truth and probs are read.
+  if (inherits(truth, "mc_roc")) {
+    if (missing(probs2) && !missing(probs1)) probs2 <- probs1
+    probs1 <- truth$probs
+    truth  <- truth$truth
+  }
+  if (inherits(probs1, "mc_roc")) probs1 <- probs1$probs
+  if (inherits(probs2, "mc_roc")) probs2 <- probs2$probs
+
+  if (is.null(levels)) levels <- base::levels(as.factor(truth))
+
+  if (!is.matrix(probs1) && !is.data.frame(probs1))
+    stop("probs1 must be a matrix or data frame.", call. = FALSE)
+  if (!is.matrix(probs2) && !is.data.frame(probs2))
+    stop("probs2 must be a matrix or data frame.", call. = FALSE)
+
+  probs1 <- as.matrix(probs1)
+  probs2 <- as.matrix(probs2)
+
+  if (!is.numeric(probs1) || !is.numeric(probs2))
+    stop("probs1 and probs2 must contain numeric values.", call. = FALSE)
+
+  if (nrow(probs1) != length(truth))
+    stop("probs1 has ", nrow(probs1), " rows but truth has ",
+         length(truth), " values.", call. = FALSE)
+  if (nrow(probs2) != length(truth))
+    stop("probs2 has ", nrow(probs2), " rows but truth has ",
+         length(truth), " values.", call. = FALSE)
+
   if (length(levels) < 3)
     stop("Need at least 3 classes for multiclass ROC; found ",
-         length(levels), ".")
+         length(levels), ".", call. = FALSE)
 
-  response <- factor(response, levels = levels)
+  truth <- factor(truth, levels = levels)
   if (!is.null(seed)) set.seed(seed)
 
-  # observed difference
-  auc1 <- as.numeric(suppressMessages(
-    pROC::multiclass.roc(response, predictor1, levels = levels))$auc)
-  auc2 <- as.numeric(suppressMessages(
-    pROC::multiclass.roc(response, predictor2, levels = levels))$auc)
-  observed_difference <- auc1 - auc2
+  auc_of <- function(y, p) {
+    as.numeric(suppressMessages(
+      pROC::multiclass.roc(y, p, levels = levels))$auc)
+  }
 
-  #  paired stratified bootstrap
-  boot_differences <- rep(NA_real_, boot.n)
+  auc1 <- auc_of(truth, probs1)
+  auc2 <- auc_of(truth, probs2)
 
-  for (b in seq_len(boot.n)) {
+  class_rows <- split(seq_along(truth), truth, drop = TRUE)
+  boot_differences <- rep(NA_real_, n_boot)
 
-    # resample WITHIN each class
-    boot_index <- unlist(
-      lapply(levels, function(class_name) {
-        class_index <- which(response == class_name)
-        sample(class_index, size = length(class_index), replace = TRUE)
-      }),
+  for (b in seq_len(n_boot)) {
+
+    # Resample within each class so class sizes never change.
+
+    rows <- unlist(
+      lapply(class_rows,
+             function(i) i[sample.int(length(i), length(i), replace = TRUE)]),
       use.names = FALSE
     )
 
-    boot_truth <- response[boot_index]
+# Apply the same sampled rows to both models to preserve the paired comparison.
+    boot_truth <- truth[rows]
 
-    boot_differences[b] <- tryCatch({
-      r1 <- suppressMessages(pROC::multiclass.roc(
-        boot_truth, predictor1[boot_index, , drop = FALSE], levels = levels))
-      r2 <- suppressMessages(pROC::multiclass.roc(
-        boot_truth, predictor2[boot_index, , drop = FALSE], levels = levels))
-      as.numeric(r1$auc) - as.numeric(r2$auc)
-    }, error = function(e) NA_real_)
+    boot_differences[b] <- tryCatch(
+      auc_of(boot_truth, probs1[rows, , drop = FALSE]) -
+        auc_of(boot_truth, probs2[rows, , drop = FALSE]),
+      error = function(e) NA_real_
+    )
   }
 
   ok       <- boot_differences[!is.na(boot_differences)]
   n_ok     <- length(ok)
-  n_failed <- boot.n - n_ok
+  n_failed <- n_boot - n_ok
 
   if (n_ok < 2)
-    stop("Too few successful bootstrap replicates to summarise.")
+    stop("Too few successful bootstrap replicates to summarise.", call. = FALSE)
+  if (n_ok < n_boot * 0.9)
+    warning(n_failed, " of ", n_boot, " bootstrap replicates failed.",
+            call. = FALSE)
 
-  if (n_ok < boot.n * 0.9)
-    warning(n_failed, " of ", boot.n, " bootstrap replicates failed.")
-
-  alpha <- 1 - conf.level
+  alpha <- 1 - conf_level
   ci    <- stats::quantile(ok, c(alpha / 2, 1 - alpha / 2), names = FALSE)
-
-  # two-sided bootstrap p-value: how often does the difference cross zero?
-  p_value <- min(2 * min(mean(ok >= 0), mean(ok <= 0)), 1)
 
   structure(
     list(auc1       = auc1,
          auc2       = auc2,
-         difference = observed_difference,
+         difference = auc1 - auc2,
          lower      = ci[1],
          upper      = ci[2],
          se         = stats::sd(ok),
-         p.value    = p_value,
-         conf.level = conf.level,
-         boot.n     = n_ok,
+         p_value    = min(2 * min(mean(ok >= 0), mean(ok <= 0)), 1),
+         conf_level = conf_level,
+         n_boot     = n_ok,
          n_failed   = n_failed,
          replicates = ok),
     class = "mc_compare"
@@ -136,26 +168,28 @@ mc_auc_compare <- function(response,
 }
 
 
-#' Print a multiclass AUC comparison
-#'
-#' @param x An object of class \code{mc_compare}, as returned by
-#'   \code{\link{mc_auc_compare}}.
-#' @param ... Further arguments passed to or from other methods.
-#'
-#' @return \code{x}, invisibly. Called for the printed output.
-#'
+#' @param x An `mc_compare` object.
+#' @param ... Ignored.
+#' @rdname mc_auc_compare
 #' @export
 print.mc_compare <- function(x, ...) {
   cat("\nMulticlass AUC comparison (paired stratified bootstrap)\n")
-  cat(sprintf("  Model 1 AUC : %.4f\n", x$auc1))
-  cat(sprintf("  Model 2 AUC : %.4f\n", x$auc2))
-  cat(sprintf("  Difference  : %.4f\n", x$difference))
-  cat(sprintf("  %.0f%% CI      : %.4f to %.4f\n",
-              x$conf.level * 100, x$lower, x$upper))
-  cat(sprintf("  Bootstrap SE: %.4f\n", x$se))
-  cat(sprintf("  p-value     : %.4f\n", x$p.value))
-  cat(sprintf("  Replicates  : %d successful, %d failed\n",
-              x$boot.n, x$n_failed))
+  cat(sprintf("  Model 1 AUC  : %.4f\n", x$auc1))
+  cat(sprintf("  Model 2 AUC  : %.4f\n", x$auc2))
+  cat(sprintf("  Difference   : %.4f\n", x$difference))
+  cat(sprintf("  %.0f%% CI       : %.4f to %.4f\n",
+              x$conf_level * 100, x$lower, x$upper))
+  cat(sprintf("  Bootstrap SE : %.4f\n", x$se))
+
+  # For display, an empirical p-value of zero is reported as < 1 / n_boot.
+  if (x$p_value < 1 / x$n_boot) {
+    cat(sprintf("  p-value      : < %.4f\n", 1 / x$n_boot))
+  } else {
+    cat(sprintf("  p-value      : %.4f\n", x$p_value))
+  }
+
+  cat(sprintf("  Replicates   : %d successful, %d failed\n",
+              x$n_boot, x$n_failed))
   cat("\n")
   invisible(x)
 }
