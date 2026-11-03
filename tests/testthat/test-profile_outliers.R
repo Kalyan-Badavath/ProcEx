@@ -113,3 +113,95 @@ test_that("One observation per class is handled", {
   )
   expect_true(is.data.frame(result))
 })
+
+# Test the flag option
+test_that("Flag option identifies outliers", {
+  result <- profile_outliers(
+    truth, probs,
+    action = "flag"
+  )
+
+  expect_true(is.data.frame(result))
+})
+
+# Test the remove option
+test_that("Remove option removes flagged observations", {
+  flagged <- profile_outliers(truth, probs, action = "flag")
+
+  cleaned <- profile_outliers(
+    truth, probs,
+    action = "remove"
+  )
+
+  expected_removed <- length(unique(flagged$observation))
+
+  expect_equal(
+    length(cleaned$removed_observations),
+    expected_removed
+  )
+
+  expect_equal(
+    nrow(cleaned$probs),
+    nrow(probs) - expected_removed
+  )
+
+  expect_equal(
+    length(cleaned$truth),
+    nrow(cleaned$probs)
+  )
+})
+
+# Test the keep option
+test_that("Keep option retains all observations", {
+  kept <- profile_outliers(
+    truth, probs,
+    action = "keep"
+  )
+
+  expect_equal(nrow(kept$probs), nrow(probs))
+  expect_equal(length(kept$truth), length(truth))
+})
+
+# Test invalid action
+test_that("Invalid action produces an error", {
+  expect_error(
+    profile_outliers(truth, probs, action = "delete")
+  )
+})
+
+# Test AUC influence output
+test_that("AUC influence returns expected columns", {
+  result <- profile_auc_influence(truth, probs)
+
+  expect_true(is.data.frame(result))
+
+  expect_true(all(c(
+    "observation",
+    "actual_class",
+    "original_auc",
+    "auc_without",
+    "auc_change"
+  ) %in% names(result)))
+})
+test_that("AUC influence correctly detects improvement", {
+
+  truth <- factor(rep(c("A", "B", "C"), each = 10))
+
+  probs <- rbind(
+    matrix(rep(c(0.90, 0.05, 0.05), 10),
+           ncol = 3, byrow = TRUE),
+    matrix(rep(c(0.05, 0.90, 0.05), 10),
+           ncol = 3, byrow = TRUE),
+    matrix(rep(c(0.05, 0.05, 0.90), 10),
+           ncol = 3, byrow = TRUE)
+  )
+
+  colnames(probs) <- c("A", "B", "C")
+  probs[5, ] <- c(0.01, 0.98, 0.01)
+
+  result <- profile_auc_influence(truth, probs)
+
+  expect_equal(result$original_auc[1], 0.95)
+  expect_equal(result$auc_without[1], 1)
+  expect_equal(result$auc_change[1], 0.05, tolerance = 1e-8)
+})
