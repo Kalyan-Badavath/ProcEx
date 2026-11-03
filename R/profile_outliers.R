@@ -177,7 +177,7 @@ profile_outliers <- function(truth, probs,
       flagged_rows
     )
   } else {
-    selected_rows <- flagged_rows
+    selected_rows <- seq_len(nrow(probs))
   }
   
   # Return selected data without changing the original input
