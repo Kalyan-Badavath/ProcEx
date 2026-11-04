@@ -41,7 +41,11 @@ test_that("valid multiclass data returns VALID", {
 
   expect_identical(result$status, "VALID")
   expect_length(result$errors, 0)
-  expect_length(result$concerns, 0)
+  expect_length(result$warnings, 0)
+
+  expect_false(
+    "concern" %in% names(result)
+  )
 
   expect_identical(result$n_obs, 30L)
   expect_identical(result$n_classes, 3L)
@@ -60,7 +64,7 @@ test_that("return object has the new API", {
     c(
       "status",
       "errors",
-      "concerns",
+      "warnings",
       "n_obs",
       "n_classes",
       "class_counts",
@@ -71,7 +75,10 @@ test_that("return object has the new API", {
 
   # Old outputs should no longer exist
   expect_false("valid" %in% names(result))
-  expect_false("warnings" %in% names(result))
+  expect_false("concerns" %in% names(result))
+
+  # Concern only exists when fewer than 3 classes are detected
+  expect_false("concern" %in% names(result))
 })
 
 
@@ -121,7 +128,7 @@ test_that("probability data frame is accepted", {
 })
 
 
-test_that("custom concern thresholds are accepted", {
+test_that("custom warning thresholds are accepted", {
 
   result <- validate_classification_data(
     base_truth,
@@ -134,9 +141,9 @@ test_that("custom concern thresholds are accepted", {
 })
 
 
-# concern tests
+# warning tests
 
-test_that("small classes produce a concern, not an error", {
+test_that("small classes produce a warning, not an error", {
 
   result <- validate_classification_data(
     base_truth,
@@ -146,23 +153,27 @@ test_that("small classes produce a concern, not an error", {
 
   expect_identical(
     result$status,
-    "VALID_WITH_CONCERNS"
+    "VALID_WITH_WARNINGS"
   )
 
   expect_length(result$errors, 0)
+
+  expect_false(
+    "concern" %in% names(result)
+  )
 
   expect_true(
     any(
       grepl(
         "fewer than 11",
-        result$concerns
+        result$warnings
       )
     )
   )
 })
 
 
-test_that("class imbalance produces a concern, not an error", {
+test_that("class imbalance produces a warning, not an error", {
 
   truth <- factor(
     c(
@@ -183,23 +194,27 @@ test_that("class imbalance produces a concern, not an error", {
 
   expect_identical(
     result$status,
-    "VALID_WITH_CONCERNS"
+    "VALID_WITH_WARNINGS"
   )
 
   expect_length(result$errors, 0)
+
+  expect_false(
+    "concern" %in% names(result)
+  )
 
   expect_true(
     any(
       grepl(
         "Class imbalance ratio is 10",
-        result$concerns
+        result$warnings
       )
     )
   )
 })
 
 
-test_that("imbalance exactly at threshold does not create concern", {
+test_that("imbalance exactly at threshold does not create warning", {
 
   truth <- factor(
     c(
@@ -224,13 +239,18 @@ test_that("imbalance exactly at threshold does not create concern", {
   )
 
   expect_length(
-    result$concerns,
+    result$warnings,
     0
+  )
+
+  expect_false(
+    "concern" %in% names(result)
   )
 })
 
 
-# two class test
+# fewer than three class tests
+
 test_that("two classes return NOT_MULTICLASS rather than INVALID", {
 
   truth <- factor(
@@ -253,12 +273,19 @@ test_that("two classes return NOT_MULTICLASS rather than INVALID", {
   expect_length(result$errors, 0)
 
   expect_true(
-    any(
-      grepl(
-        "Only 2 classes were detected",
-        result$concerns
-      )
+    "concern" %in% names(result)
+  )
+
+  expect_true(
+    grepl(
+      "Only 2 classes were detected",
+      result$concern
     )
+  )
+
+  expect_length(
+    result$warnings,
+    0
   )
 
   expect_identical(
@@ -268,7 +295,62 @@ test_that("two classes return NOT_MULTICLASS rather than INVALID", {
 })
 
 
-test_that("one observed class is invalid", {
+test_that("two classes can return a concern and warnings together", {
+
+  truth <- factor(
+    c(
+      rep("A", 20),
+      rep("B", 1)
+    )
+  )
+
+  probs <- make_test_probs(truth)
+
+  result <- validate_classification_data(
+    truth,
+    probs,
+    min_class_n = 10,
+    imbalance_ratio = 10
+  )
+
+  expect_identical(
+    result$status,
+    "NOT_MULTICLASS"
+  )
+
+  expect_length(
+    result$errors,
+    0
+  )
+
+  expect_true(
+    grepl(
+      "Only 2 classes were detected",
+      result$concern
+    )
+  )
+
+  expect_true(
+    any(
+      grepl(
+        "fewer than 10",
+        result$warnings
+      )
+    )
+  )
+
+  expect_true(
+    any(
+      grepl(
+        "Class imbalance ratio is 20",
+        result$warnings
+      )
+    )
+  )
+})
+
+
+test_that("one observed class returns NOT_MULTICLASS", {
 
   truth <- factor(
     rep("A", 10)
@@ -283,19 +365,35 @@ test_that("one observed class is invalid", {
 
   expect_identical(
     result$status,
-    "INVALID"
+    "NOT_MULTICLASS"
+  )
+
+  expect_length(
+    result$errors,
+    0
   )
 
   expect_true(
-    any(
-      grepl(
-        "At least 2 observed classes",
-        result$errors
-      )
+    "concern" %in% names(result)
+  )
+
+  expect_true(
+    grepl(
+      "Only 1 class was detected",
+      result$concern
     )
   )
-})
 
+  expect_length(
+    result$warnings,
+    0
+  )
+
+  expect_identical(
+    result$n_classes,
+    1L
+  )
+})
 
 
 # truth tests
@@ -571,9 +669,7 @@ test_that("all probability columns must be numeric", {
 })
 
 
-
 # invalida probability values
-
 
 test_that("NA probability values are invalid", {
 
@@ -729,6 +825,7 @@ test_that("small floating point differences are accepted", {
   )
 })
 
+
 #setting validation
 
 test_that("invalid min_class_n values are rejected", {
@@ -805,7 +902,7 @@ test_that("invalid imbalance_ratio values are rejected", {
 
 #status priority
 
-test_that("structural errors take priority over concerns", {
+test_that("structural errors take priority over multiclass concern", {
 
   truth <- factor(
     rep(c("A", "B"), each = 10)
@@ -867,5 +964,9 @@ test_that("unused factor levels are ignored", {
   expect_false(
     "D" %in%
       names(result$class_counts)
+  )
+
+  expect_false(
+    "concern" %in% names(result)
   )
 })

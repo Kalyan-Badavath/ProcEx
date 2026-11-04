@@ -282,7 +282,7 @@ mc_refit <- function(x, ...) {
          call. = FALSE)
   }
 
-  for (w in checks$concerns) warning(w, call. = FALSE)
+  for (w in checks$warnings) warning(w, call. = FALSE)
 
   if (n_missing > 0) {
     warning(sprintf(paste0(
@@ -346,10 +346,10 @@ mc_refit <- function(x, ...) {
 
 .mc_fmt_checks <- function(checks) {
   if (is.null(checks)) return("not run")
-  nc <- length(checks$concerns)
-  if (nc == 0) return(checks$status)
-  sprintf("%s (%d concern%s, see summary())", checks$status, nc,
-          if (nc == 1) "" else "s")
+  nw <- length(checks$warnings)
+  if (nw == 0) return(checks$status)
+  sprintf("%s (%d warning%s, see summary())", checks$status, nw,
+          if (nw == 1) "" else "s")
 }
 
 
@@ -457,6 +457,6 @@ print.summary.mc_roc <- function(x, digits = 3, ...) {
         sep = "")
     # Forward compatible: if the validator adds a summary table, show it.
     if (is.data.frame(ck$table)) print(ck$table, row.names = FALSE)
-    for (w in ck$concerns) cat("  - concern: ", w, "\n", sep = "")  }
+    for (w in ck$warnings) cat("  - warning: ", w, "\n", sep = "")  }
   invisible(x)
 }

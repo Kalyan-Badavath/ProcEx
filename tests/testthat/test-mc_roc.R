@@ -110,7 +110,7 @@ test_that("content problems are decided by validate_classification_data()", {
   expect_match(err, "must match the class labels")
 })
 
-test_that("validator concerns pass through and thresholds can be set", {
+test_that("validator warnings pass through and thresholds can be set", {
   d <- sim_mc(n = 300, weights = c(0.9, 0.08, 0.02), seed = 3)
   msgs <- character()
   fit <- withCallingHandlers(mc_roc(d$y, d$p), warning = function(w) {
@@ -119,7 +119,7 @@ test_that("validator concerns pass through and thresholds can be set", {
   })
   expect_true(any(grepl("fewer than 10", msgs)))
   expect_true(any(grepl("imbalance ratio", msgs)))
-  expect_identical(fit$checks$status, "VALID_WITH_CONCERNS")
+  expect_identical(fit$checks$status, "VALID_WITH_WARNINGS")
   expect_no_warning(mc_roc(d$y, d$p, min_class_n = 1, imbalance_ratio = 1000))
 })
 

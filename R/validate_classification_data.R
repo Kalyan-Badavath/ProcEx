@@ -7,13 +7,15 @@
 #' @param probs A data frame or matrix containing predicted probabilities
 #'   for each class.
 #' @param min_class_n Minimum number of observations expected in each class.
-#'   Classes below this value generate a concern.
+#'   Classes below this value generate a warning.
 #' @param imbalance_ratio Maximum allowed ratio between the largest and
-#'   smallest class. Ratios above this value generate a concern.
+#'   smallest class. Ratios above this value generate a warning.
 #'
-#' @return A list containing the validation status, errors, concerns,
+#' @return A list containing the validation status, errors, warnings,
 #'   number of observations, number of classes, class counts, and
-#'   class proportions.
+#'   class proportions. If fewer than 3 observed classes are detected,
+#'   the result also contains a concern explaining that ProcEx is designed
+#'   for multiclass analysis.
 #'
 #' @export
 validate_classification_data <- function(
@@ -24,7 +26,8 @@ validate_classification_data <- function(
 ) {
 
   errors <- character()
-  concerns <- character()
+  warnings <- character()
+  concern <- NULL
 
   # Validate function settings
 
@@ -93,24 +96,20 @@ validate_classification_data <- function(
     # Only classes actually observed in the data
     classes <- unique(as.character(valid_truth))
 
-    # One class is not sufficient for classification analysis
+    # Fewer than 3 observed classes are outside ProcEx's multiclass scope
     if (length(classes) == 1) {
-      errors <- c(
-        errors,
-        "At least 2 observed classes are required for classification analysis."
+      concern <- paste0(
+        "Only 1 class was detected. ",
+        "ProcEx is designed for multiclass classification ",
+        "with 3 or more classes."
       )
     }
 
-    # Two classes are valid classification data,
-    # but ProcEx is designed for multiclass analysis
     if (length(classes) == 2) {
-      concerns <- c(
-        concerns,
-        paste0(
-          "Only 2 classes were detected. ",
-          "ProcEx is designed for multiclass classification ",
-          "with 3 or more classes."
-        )
+      concern <- paste0(
+        "Only 2 classes were detected. ",
+        "ProcEx is designed for multiclass classification ",
+        "with 3 or more classes."
       )
     }
 
@@ -241,9 +240,9 @@ validate_classification_data <- function(
     }
   }
 
-  # Reliability concerns
+  # Reliability warnings
 
-  # Small class concern
+  # Small class warning
 
   if (
     length(class_counts) > 0 &&
@@ -254,8 +253,8 @@ validate_classification_data <- function(
   ) {
 
     if (any(class_counts < min_class_n)) {
-      concerns <- c(
-        concerns,
+      warnings <- c(
+        warnings,
         paste0(
           "At least one class has fewer than ",
           min_class_n,
@@ -266,7 +265,7 @@ validate_classification_data <- function(
     }
   }
 
-  # Class imbalance concern
+  # Class imbalance warning
 
   if (
     length(class_counts) > 0 &&
@@ -281,8 +280,8 @@ validate_classification_data <- function(
       min(as.numeric(class_counts))
 
     if (observed_ratio > imbalance_ratio) {
-      concerns <- c(
-        concerns,
+      warnings <- c(
+        warnings,
         paste0(
           "Class imbalance ratio is ",
           round(observed_ratio, 2),
@@ -297,7 +296,7 @@ validate_classification_data <- function(
   # Remove duplicate messages
 
   errors <- unique(errors)
-  concerns <- unique(concerns)
+  warnings <- unique(warnings)
 
   # Overall status
 
@@ -305,13 +304,13 @@ validate_classification_data <- function(
 
     status <- "INVALID"
 
-  } else if (length(classes) == 2) {
+  } else if (length(classes) < 3) {
 
     status <- "NOT_MULTICLASS"
 
-  } else if (length(concerns) > 0) {
+  } else if (length(warnings) > 0) {
 
-    status <- "VALID_WITH_CONCERNS"
+    status <- "VALID_WITH_WARNINGS"
 
   } else {
 
@@ -320,13 +319,23 @@ validate_classification_data <- function(
 
   # Return result
 
-  list(
+  result <- list(
     status = status,
-    errors = errors,
-    concerns = concerns,
-    n_obs = if (truth_valid_structure) length(truth) else NA_integer_,
-    n_classes = length(classes),
-    class_counts = class_counts,
-    class_proportions = class_proportions
+    errors = errors
   )
+
+  if (
+    length(classes) > 0 &&
+    length(classes) < 3
+  ) {
+    result$concern <- concern
+  }
+
+  result$warnings <- warnings
+  result$n_obs <- if (truth_valid_structure) length(truth) else NA_integer_
+  result$n_classes <- length(classes)
+  result$class_counts <- class_counts
+  result$class_proportions <- class_proportions
+
+  result
 }
