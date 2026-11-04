@@ -9,20 +9,31 @@ profile_outliers(
   probs,
   iqr_multiplier = 1.5,
   lower = NULL,
-  upper = NULL
+  upper = NULL,
+  action = "flag"
 )
 }
 \arguments{
-\item{truth}{True class labels.}
+\item{truth}{True class labels (factor or character).}
 
-\item{probs}{Predicted class probabilities.}
+\item{probs}{Predicted class probabilities (matrix or data frame).}
 
-\item{iqr_multiplier}{Multiplier used for IQR-based outlier detection.}
+\item{iqr_multiplier}{Multiplier for IQR-based outlier detection.}
 
 \item{lower}{Optional custom lower probability limit.}
 
 \item{upper}{Optional custom upper probability limit.}
+
+\item{action}{What to do with flagged observations:
+"flag" (default), "remove", or "keep".}
+}
+\value{
+For action = "flag", a data frame of flagged scores.
+For "remove" or "keep", a list containing the selected labels,
+probabilities, detected outliers, and removed observation indices.
 }
 \description{
-Profile multiclass prediction outliers
+Identifies unusual prediction probabilities using the IQR method
+and detects high-confidence incorrect predictions.
+Users can choose whether to flag, remove, or keep flagged observations.
 }
