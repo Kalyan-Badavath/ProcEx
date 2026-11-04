@@ -271,11 +271,18 @@ mc_refit <- function(x, ...) {
 
   checks <- validate_classification_data(truth[complete],
                                          probs[complete, , drop = FALSE], ...)
-  if (!isTRUE(checks$valid)) {
+
+  if (identical(checks$status, "INVALID")) {
     stop("Data checks failed:\n",
          paste0("  - ", checks$errors, collapse = "\n"), call. = FALSE)
   }
-  for (w in checks$warnings) warning(w, call. = FALSE)
+
+  if (identical(checks$status, "NOT_MULTICLASS")) {
+    stop("At least 3 classes are required for multiclass analysis.",
+         call. = FALSE)
+  }
+
+  for (w in checks$concerns) warning(w, call. = FALSE)
 
   if (n_missing > 0) {
     warning(sprintf(paste0(
@@ -339,11 +346,12 @@ mc_refit <- function(x, ...) {
 
 .mc_fmt_checks <- function(checks) {
   if (is.null(checks)) return("not run")
-  nw <- length(checks$warnings)
-  if (nw == 0) return(checks$status)
-  sprintf("%s (%d warning%s, see summary())", checks$status, nw,
-          if (nw == 1) "" else "s")
+  nc <- length(checks$concerns)
+  if (nc == 0) return(checks$status)
+  sprintf("%s (%d concern%s, see summary())", checks$status, nc,
+          if (nc == 1) "" else "s")
 }
+
 
 #' @rdname mc_roc
 #' @param x An `mc_roc` object (for `print()`), or a `summary.mc_roc` object.
@@ -449,7 +457,6 @@ print.summary.mc_roc <- function(x, digits = 3, ...) {
         sep = "")
     # Forward compatible: if the validator adds a summary table, show it.
     if (is.data.frame(ck$table)) print(ck$table, row.names = FALSE)
-    for (w in ck$warnings) cat("  - warning: ", w, "\n", sep = "")
-  }
+    for (w in ck$concerns) cat("  - concern: ", w, "\n", sep = "")  }
   invisible(x)
 }

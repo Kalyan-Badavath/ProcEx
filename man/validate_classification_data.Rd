@@ -18,13 +18,13 @@ validate_classification_data(
 for each class.}
 
 \item{min_class_n}{Minimum number of observations expected in each class.
-Classes below this value generate a warning.}
+Classes below this value generate a concern.}
 
 \item{imbalance_ratio}{Maximum allowed ratio between the largest and
-smallest class. Ratios above this value generate a warning.}
+smallest class. Ratios above this value generate a concern.}
 }
 \value{
-A list containing the validation status, errors, warnings,
+A list containing the validation status, errors, concerns,
 number of observations, number of classes, class counts, and
 class proportions.
 }

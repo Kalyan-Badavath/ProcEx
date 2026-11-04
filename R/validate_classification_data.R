@@ -7,11 +7,11 @@
 #' @param probs A data frame or matrix containing predicted probabilities
 #'   for each class.
 #' @param min_class_n Minimum number of observations expected in each class.
-#'   Classes below this value generate a warning.
+#'   Classes below this value generate a concern.
 #' @param imbalance_ratio Maximum allowed ratio between the largest and
-#'   smallest class. Ratios above this value generate a warning.
+#'   smallest class. Ratios above this value generate a concern.
 #'
-#' @return A list containing the validation status, errors, warnings,
+#' @return A list containing the validation status, errors, concerns,
 #'   number of observations, number of classes, class counts, and
 #'   class proportions.
 #'
@@ -24,7 +24,7 @@ validate_classification_data <- function(
 ) {
 
   errors <- character()
-  warnings <- character()
+  concerns <- character()
 
   # Validate function settings
 
@@ -48,7 +48,10 @@ validate_classification_data <- function(
   ) {
     errors <- c(
       errors,
-      "imbalance_ratio must be a single numeric value greater than or equal to 1."
+      paste0(
+        "imbalance_ratio must be a single numeric value ",
+        "greater than or equal to 1."
+      )
     )
   }
 
@@ -90,10 +93,24 @@ validate_classification_data <- function(
     # Only classes actually observed in the data
     classes <- unique(as.character(valid_truth))
 
-    if (length(classes) < 3) {
+    # One class is not sufficient for classification analysis
+    if (length(classes) == 1) {
       errors <- c(
         errors,
-        "At least 3 classes are required for multiclass analysis."
+        "At least 2 observed classes are required for classification analysis."
+      )
+    }
+
+    # Two classes are valid classification data,
+    # but ProcEx is designed for multiclass analysis
+    if (length(classes) == 2) {
+      concerns <- c(
+        concerns,
+        paste0(
+          "Only 2 classes were detected. ",
+          "ProcEx is designed for multiclass classification ",
+          "with 3 or more classes."
+        )
       )
     }
 
@@ -139,6 +156,7 @@ validate_classification_data <- function(
     }
 
     # Check probability column names
+
     if (is.null(colnames(probs))) {
 
       errors <- c(
@@ -171,6 +189,7 @@ validate_classification_data <- function(
     }
 
     # Check that all probability columns are numeric
+
     numeric_cols <- vapply(
       as.data.frame(probs),
       is.numeric,
@@ -189,6 +208,7 @@ validate_classification_data <- function(
       probs_matrix <- as.matrix(probs)
 
       # Missing / infinite values
+
       if (any(!is.finite(probs_matrix))) {
 
         errors <- c(
@@ -199,6 +219,7 @@ validate_classification_data <- function(
       } else {
 
         # Probability range
+
         if (any(probs_matrix < 0 | probs_matrix > 1)) {
           errors <- c(
             errors,
@@ -207,6 +228,7 @@ validate_classification_data <- function(
         }
 
         # Probability rows should sum to 1
+
         row_totals <- rowSums(probs_matrix)
 
         if (any(abs(row_totals - 1) > 1e-6)) {
@@ -219,9 +241,10 @@ validate_classification_data <- function(
     }
   }
 
-  # Reliability warnings
+  # Reliability concerns
 
-  # Small class warning
+  # Small class concern
+
   if (
     length(class_counts) > 0 &&
     is.numeric(min_class_n) &&
@@ -231,18 +254,20 @@ validate_classification_data <- function(
   ) {
 
     if (any(class_counts < min_class_n)) {
-      warnings <- c(
-        warnings,
+      concerns <- c(
+        concerns,
         paste0(
           "At least one class has fewer than ",
           min_class_n,
-          " observations."
+          " observations. Results involving small classes ",
+          "may be less reliable."
         )
       )
     }
   }
 
-  # Class imbalance warning
+  # Class imbalance concern
+
   if (
     length(class_counts) > 0 &&
     is.numeric(imbalance_ratio) &&
@@ -256,39 +281,49 @@ validate_classification_data <- function(
       min(as.numeric(class_counts))
 
     if (observed_ratio > imbalance_ratio) {
-      warnings <- c(
-        warnings,
+      concerns <- c(
+        concerns,
         paste0(
           "Class imbalance ratio is ",
           round(observed_ratio, 2),
           ", which exceeds the threshold of ",
           imbalance_ratio,
-          "."
+          ". Results should be interpreted with care."
         )
       )
     }
   }
 
-  # Overall status
+  # Remove duplicate messages
 
   errors <- unique(errors)
-  warnings <- unique(warnings)
+  concerns <- unique(concerns)
+
+  # Overall status
 
   if (length(errors) > 0) {
+
     status <- "INVALID"
-  } else if (length(warnings) > 0) {
-    status <- "VALID_WITH_WARNINGS"
+
+  } else if (length(classes) == 2) {
+
+    status <- "NOT_MULTICLASS"
+
+  } else if (length(concerns) > 0) {
+
+    status <- "VALID_WITH_CONCERNS"
+
   } else {
+
     status <- "VALID"
   }
 
   # Return result
 
   list(
-    valid = length(errors) == 0,
     status = status,
     errors = errors,
-    warnings = warnings,
+    concerns = concerns,
     n_obs = if (truth_valid_structure) length(truth) else NA_integer_,
     n_classes = length(classes),
     class_counts = class_counts,
