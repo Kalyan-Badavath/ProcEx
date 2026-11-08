@@ -206,3 +206,120 @@ test_that("AUC influence correctly detects improvement", {
   expect_equal(result$auc_without[1], 1)
   expect_equal(result$auc_change[1], 0.05, tolerance = 1e-8)
 })
+
+
+# ==========================================
+# TESTS FOR profile_auc_combinations()
+# ==========================================
+
+test_that("Combination function returns correct output", {
+  
+  result <- profile_auc_combinations(
+    truth, probs,
+    top_n = 5,
+    warn_threshold = 1000
+  )
+  cat("\nSelected:", length(result$selected_observations))
+  cat("\nCombinations:", nrow(result$combinations))
+  cat("\nData rows:", length(truth), "\n")
+  
+  
+  expect_true(is.list(result))
+  
+  expect_true(all(c(
+    "individual",
+    "combinations",
+    "selected_observations",
+    "flagged_count",
+    "original_auc"
+  ) %in% names(result)))
+  
+  expect_true(is.data.frame(result$combinations))
+})
+
+
+test_that("Combination count is correct", {
+  
+  result <- profile_auc_combinations(
+    truth, probs,
+    top_n = 5,
+    warn_threshold = 1000
+  )
+  
+  
+  n <- length(result$selected_observations)
+  
+  # Maximum possible combinations for top 5
+  expected <- 2^5 - 1
+  
+  expect_lte(length(result$selected_observations), 5)
+  expect_lte(nrow(result$combinations), expected)
+  expect_gt(nrow(result$combinations), 0)
+  
+})
+
+
+test_that("Combination AUC values are valid", {
+  
+  result <- profile_auc_combinations(
+    truth, probs,
+    top_n = 5,
+    warn_threshold = 1000
+  )
+  
+  expect_true(all(is.finite(result$combinations$auc_change)))
+  
+  expect_true(all(
+    result$combinations$auc_without >= 0 &
+      result$combinations$auc_without <= 1
+  ))
+})
+
+
+test_that("Combinations are ranked by AUC change", {
+  
+  result <- profile_auc_combinations(
+    truth, probs,
+    top_n = 5,
+    warn_threshold = 1000
+  )
+  
+  changes <- abs(result$combinations$auc_change)
+  
+  expect_true(
+    all(diff(changes) <= 1e-10)
+  )
+})
+
+
+test_that("Invalid top_n is rejected", {
+  
+  expect_error(
+    profile_auc_combinations(
+      truth, probs,
+      top_n = -1
+    ),
+    "top_n"
+  )
+  
+  expect_error(
+    profile_auc_combinations(
+      truth, probs,
+      top_n = 11
+    ),
+    "top_n"
+  )
+})
+
+
+test_that("Warning appears for many outliers", {
+  
+  expect_warning(
+    profile_auc_combinations(
+      truth, probs,
+      top_n = 5,
+      warn_threshold = 0
+    ),
+    "Influence analysis may take a long time"
+  )
+})
