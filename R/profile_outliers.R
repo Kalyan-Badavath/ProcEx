@@ -298,3 +298,171 @@ profile_auc_influence <- function(truth, probs,
   ]
 }
 
+
+
+#' Analyse combinations of influential multiclass outliers
+#'
+#' Selects the top influential observations and checks
+#' all possible combinations using Hand-Till AUC.
+#'
+#' @param truth Actual class labels.
+#' @param probs Predicted class probabilities.
+#' @param top_n Number of top observations to combine.
+#' @param warn_threshold Warning threshold for flagged observations.
+#' @param iqr_multiplier IQR multiplier.
+#' @param lower Optional lower probability limit.
+#' @param upper Optional upper probability limit.
+#' @return Individual and combined influence results.
+#' @export
+
+profile_auc_combinations <- function(
+    truth, probs,
+    top_n = 5,
+    warn_threshold = 100,
+    iqr_multiplier = 1.5,
+    lower = NULL,
+    upper = NULL) {
+  
+  # Check settings
+  if (!is.numeric(top_n) || length(top_n) != 1 ||
+      !is.finite(top_n) || top_n != floor(top_n) ||
+      top_n < 1 || top_n > 10) {
+    stop("top_n must be a whole number between 1 and 10.")
+  }
+  
+  if (!is.numeric(warn_threshold) ||
+      length(warn_threshold) != 1 ||
+      !is.finite(warn_threshold) ||
+      warn_threshold != floor(warn_threshold) ||
+      warn_threshold < 0) {
+    stop("warn_threshold must be a non-negative whole number.")
+  }
+  
+  # Identify flagged observations
+  flagged <- profile_outliers(
+    truth = truth,
+    probs = probs,
+    iqr_multiplier = iqr_multiplier,
+    lower = lower,
+    upper = upper,
+    action = "flag"
+  )
+  
+  flagged_count <- length(unique(flagged$observation))
+  
+  # Warn if there are too many flagged observations
+  if (flagged_count > warn_threshold) {
+    warning(
+      paste(
+        flagged_count, "unique observations were flagged.",
+        "Influence analysis may take a long time.",
+        "Consider using a smaller sample."
+      )
+    )
+  }
+  
+  # Calculate individual influence
+  individual <- profile_auc_influence(
+    truth = truth,
+    probs = probs,
+    iqr_multiplier = iqr_multiplier,
+    lower = lower,
+    upper = upper
+  )
+  
+  # Prepare empty results
+  empty <- data.frame(
+    observations = character(),
+    combination_size = integer(),
+    original_auc = numeric(),
+    auc_without = numeric(),
+    auc_change = numeric()
+  )
+  
+  if (nrow(individual) == 0) {
+    return(list(
+      individual = individual,
+      combinations = empty,
+      selected_observations = integer(),
+      flagged_count = flagged_count,
+      original_auc = NA_real_
+    ))
+  }
+  
+  # Select the top 5 most influential observations
+  selected <- head(individual$observation, top_n)
+  selected <- as.integer(selected)
+  
+  original_auc <- individual$original_auc[1]
+  
+  truth <- factor(truth)
+  probs <- as.matrix(probs)
+  
+  probs <- probs[, levels(truth), drop = FALSE]
+  
+  # Generate every possible combination
+  combinations_list <- list()
+  
+  for (k in seq_along(selected)) {
+    combinations_list <- c(
+      combinations_list,
+      combn(seq_along(selected), k, simplify = FALSE)
+    )
+  }
+  
+  combinations_list <- lapply(
+    combinations_list,
+    function(i) selected[i]
+  )
+  
+  results <- empty
+  
+  # Calculate AUC for each combination
+  for (group in combinations_list) {
+    
+    keep <- !(seq_along(truth) %in% group)
+    
+    # Skip if removing observations eliminates a class
+    if (any(table(truth[keep]) == 0)) {
+      next
+    }
+    
+    new_auc <- as.numeric(
+      pROC::multiclass.roc(
+        response = truth[keep],
+        predictor = probs[keep, , drop = FALSE],
+        levels = levels(truth),
+        direction = ">"
+      )$auc
+    )
+    
+    results <- rbind(
+      results,
+      data.frame(
+        observations = paste(group, collapse = ", "),
+        combination_size = length(group),
+        original_auc = original_auc,
+        auc_without = new_auc,
+        auc_change = new_auc - original_auc
+      )
+    )
+  }
+  
+  # Rank combinations by absolute AUC change
+  results <- results[
+    order(-abs(results$auc_change)),
+    ,
+    drop = FALSE
+  ]
+  
+  rownames(results) <- NULL
+  
+  return(list(
+    individual = individual,
+    combinations = results,
+    selected_observations = selected,
+    flagged_count = flagged_count,
+    original_auc = original_auc
+  ))
+}
+
