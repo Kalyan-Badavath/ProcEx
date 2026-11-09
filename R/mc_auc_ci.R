@@ -9,17 +9,28 @@
 #' @param truth True class labels.
 #' @param probabilities Matrix of predicted class probabilities.
 #' @param n_boot Number of bootstrap replicates (default: 1000).
-#' @param conf_level Confidence level for the percentile bootstrap
-#'   interval (default: 0.95, meaning 95% confidence).
+#' @param conf_level Confidence level used to calculate the percentile
+#'   bootstrap confidence interval. The default is 0.95 (95% CI),
+#'   using the 2.5th and 97.5th percentiles of the bootstrap AUC values.
+#'   For example, 0.90 produces a 90% confidence interval.
 #' @param seed Optional random seed for reproducibility.
-#' @param show_bootstrap_values If FALSE, print only the summary.
-#'   If TRUE, print up to 100 bootstrap AUC values.
-#'   All successful values remain accessible through
-#'   result$bootstrap_values.
+#' @param show_bootstrap_values Logical value controlling whether
+#'   individual bootstrap AUC estimates are printed.
+#'   The default is FALSE, which displays only the summary.
+#'   If TRUE, up to 100 bootstrap AUC estimates are printed.
+#'   Each value represents the AUC calculated from one bootstrap sample.
+#'   All successful bootstrap AUC estimates are stored in
+#'   the returned object's bootstrap_values component.
 #'
-#' @return An object containing the original AUC, bootstrap
-#'   standard error, confidence interval, bootstrap counts,
-#'   and successful bootstrap AUC values.
+#' @return An object of class mc_auc_ci containing:
+#'   original_auc (AUC calculated from the original data),
+#'   standard_error (standard deviation of bootstrap AUC estimates),
+#'   lower_ci and upper_ci (percentile confidence interval bounds),
+#'   conf_level (selected confidence level),
+#'   n_boot (requested bootstrap replicates),
+#'   n_successful and n_failed (bootstrap counts),
+#'   bootstrap_values (successful bootstrap AUC estimates),
+#'   and show_bootstrap_values (printing preference).
 # 3. Define mc_auc_ci()
 
 mc_auc_ci <- function(truth,
