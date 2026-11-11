@@ -20,7 +20,7 @@ Authors@R:
              email = "patelhet2335@gmail.com",
              role = "aut"),
       person("Aksa Mary", "Gigo",
-             email = "a1977548@adelaide.edu.au",
+             email = "aksagigo@gmail.com",
              role = "aut")
     )
 Description: Tools for evaluating multiclass classification models using ROC analysis, Hand-Till multiclass AUC, bootstrap confidence intervals, model comparison, data validation, missing-value handling, and prediction outlier detection.
