@@ -22,56 +22,56 @@ profile_outliers <- function(truth, probs,
                              lower = NULL,
                              upper = NULL,
                              action = "flag") {
-  
+
   action <- match.arg(action, c("flag", "remove", "keep"))
-  
+
   # Validate actual class labels
   if (!is.factor(truth) && !is.character(truth)) {
     stop("truth must be a factor or character vector.")
   }
-  
+
   # Validate prediction scores
   if (!is.matrix(probs) && !is.data.frame(probs)) {
     stop("probs must be a numeric matrix or data frame.")
   }
-  
+
   probs <- as.data.frame(probs)
-  
+
   if (nrow(probs) != length(truth)) {
     stop("truth and probs must have the same number of observations.")
   }
-  
+
   if (ncol(probs) < 3) {
     stop("At least three prediction-score columns are required.")
   }
-  
+
   if (!all(vapply(probs, is.numeric, logical(1)))) {
     stop("All prediction scores must be numeric.")
   }
-  
+
   if (anyNA(truth) || anyNA(probs)) {
     stop("Missing values detected. Please handle them first.")
   }
-  
+
   if (any(!is.finite(as.matrix(probs)))) {
     stop("Prediction scores must be finite.")
   }
-  
+
   if (any(as.matrix(probs) < 0 | as.matrix(probs) > 1)) {
     stop("Prediction probabilities must be between 0 and 1.")
   }
-  
+
   if (!is.numeric(iqr_multiplier) ||
       length(iqr_multiplier) != 1 ||
       !is.finite(iqr_multiplier) ||
       iqr_multiplier < 0) {
     stop("iqr_multiplier must be a non-negative number.")
   }
-  
+
   if (xor(is.null(lower), is.null(upper))) {
     stop("Provide both lower and upper, or neither.")
   }
-  
+
   if (!is.null(lower)) {
     if (!is.numeric(lower) || !is.numeric(upper) ||
         length(lower) != 1 || length(upper) != 1 ||
@@ -80,7 +80,7 @@ profile_outliers <- function(truth, probs,
       stop("Custom limits must satisfy 0 <= lower < upper <= 1.")
     }
   }
-  
+
   # Create an empty results table
   results <- data.frame(
     observation = integer(),
@@ -89,30 +89,30 @@ profile_outliers <- function(truth, probs,
     score = numeric(),
     reason = character()
   )
-  
+
   # Detect IQR-based outliers
   for (column in names(probs)) {
-    
+
     values <- probs[[column]]
-    
+
     if (is.null(lower)) {
       q1 <- as.numeric(stats::quantile(values, 0.25))
       q3 <- as.numeric(stats::quantile(values, 0.75))
-      
+
       iqr_value <- q3 - q1
-      
+
       lower_limit <- q1 - iqr_multiplier * iqr_value
       upper_limit <- q3 + iqr_multiplier * iqr_value
-      
+
     } else {
       lower_limit <- lower
       upper_limit <- upper
     }
-    
+
     outliers <- which(
       values < lower_limit | values > upper_limit
     )
-    
+
     if (length(outliers) > 0) {
       results <- rbind(
         results,
@@ -130,24 +130,24 @@ profile_outliers <- function(truth, probs,
       )
     }
   }
-  
+
   # Detect high-confidence wrong predictions
   confidence_threshold <- 0.90
-  
+
   if (!is.null(names(probs)) &&
       setequal(names(probs), unique(as.character(truth)))) {
-    
+
     predicted_class <- names(probs)[
       max.col(probs, ties.method = "first")
     ]
-    
+
     confidence <- apply(probs, 1, max)
-    
+
     wrong_high_confidence <- which(
       predicted_class != as.character(truth) &
         confidence >= confidence_threshold
     )
-    
+
     if (length(wrong_high_confidence) > 0) {
       results <- rbind(
         results,
@@ -161,15 +161,15 @@ profile_outliers <- function(truth, probs,
       )
     }
   }
-  
+
   # Default action: only display flagged observations
   if (action == "flag") {
     return(results)
   }
-  
+
   # Get unique observation numbers
   flagged_rows <- sort(unique(results$observation))
-  
+
   # Remove or retain flagged observations
   if (action == "remove") {
     selected_rows <- setdiff(
@@ -179,7 +179,7 @@ profile_outliers <- function(truth, probs,
   } else {
     selected_rows <- seq_len(nrow(probs))
   }
-  
+
   # Return selected data without changing the original input
   return(list(
     action = action,
@@ -216,7 +216,7 @@ profile_auc_influence <- function(truth, probs,
                                   iqr_multiplier = 1.5,
                                   lower = NULL,
                                   upper = NULL) {
-  
+
   # Identify outliers without removing them
   flagged <- profile_outliers(
     truth = truth,
@@ -226,21 +226,21 @@ profile_auc_influence <- function(truth, probs,
     upper = upper,
     action = "flag"
   )
-  
+
   probs <- as.matrix(probs)
   truth <- factor(truth)
-  
+
   if (nlevels(truth) < 3) {
     stop("At least three classes are required.")
   }
-  
+
   if (is.null(colnames(probs)) ||
       !setequal(colnames(probs), levels(truth))) {
     stop("Prediction columns must match the class labels.")
   }
-  
+
   probs <- probs[, levels(truth), drop = FALSE]
-  
+
   # Calculate Hand-Till multiclass AUC
   auc_value <- function(y, p) {
     as.numeric(pROC::multiclass.roc(
@@ -250,12 +250,12 @@ profile_auc_influence <- function(truth, probs,
       direction = ">"
     )$auc)
   }
-  
+
   original_auc <- auc_value(truth, probs)
-  
+
   # Avoid evaluating the same observation multiple times
   observations <- unique(flagged$observation)
-  
+
   results <- data.frame(
     observation = integer(),
     actual_class = character(),
@@ -263,21 +263,21 @@ profile_auc_influence <- function(truth, probs,
     auc_without = numeric(),
     auc_change = numeric()
   )
-  
+
   for (i in observations) {
-    
+
     keep <- seq_along(truth) != i
-    
+
     # Skip removal if it would eliminate a class
     if (any(table(truth[keep]) == 0)) {
       next
     }
-    
+
     new_auc <- auc_value(
       truth[keep],
       probs[keep, , drop = FALSE]
     )
-    
+
     results <- rbind(
       results,
       data.frame(
@@ -289,7 +289,7 @@ profile_auc_influence <- function(truth, probs,
       )
     )
   }
-  
+
   # Rank observations by absolute AUC change
   results[
     order(-abs(results$auc_change)),
@@ -297,7 +297,6 @@ profile_auc_influence <- function(truth, probs,
     drop = FALSE
   ]
 }
-
 
 
 #' Analyse combinations of influential multiclass outliers
@@ -314,7 +313,6 @@ profile_auc_influence <- function(truth, probs,
 #' @param upper Optional upper probability limit.
 #' @return Individual and combined influence results.
 #' @export
-
 profile_auc_combinations <- function(
     truth, probs,
     top_n = 5,
@@ -322,14 +320,14 @@ profile_auc_combinations <- function(
     iqr_multiplier = 1.5,
     lower = NULL,
     upper = NULL) {
-  
+
   # Check settings
   if (!is.numeric(top_n) || length(top_n) != 1 ||
       !is.finite(top_n) || top_n != floor(top_n) ||
       top_n < 1 || top_n > 10) {
     stop("top_n must be a whole number between 1 and 10.")
   }
-  
+
   if (!is.numeric(warn_threshold) ||
       length(warn_threshold) != 1 ||
       !is.finite(warn_threshold) ||
@@ -337,7 +335,7 @@ profile_auc_combinations <- function(
       warn_threshold < 0) {
     stop("warn_threshold must be a non-negative whole number.")
   }
-  
+
   # Identify flagged observations
   flagged <- profile_outliers(
     truth = truth,
@@ -347,9 +345,9 @@ profile_auc_combinations <- function(
     upper = upper,
     action = "flag"
   )
-  
+
   flagged_count <- length(unique(flagged$observation))
-  
+
   # Warn if there are too many flagged observations
   if (flagged_count > warn_threshold) {
     warning(
@@ -360,7 +358,7 @@ profile_auc_combinations <- function(
       )
     )
   }
-  
+
   # Calculate individual influence
   individual <- profile_auc_influence(
     truth = truth,
@@ -369,7 +367,7 @@ profile_auc_combinations <- function(
     lower = lower,
     upper = upper
   )
-  
+
   # Prepare empty results
   empty <- data.frame(
     observations = character(),
@@ -378,7 +376,7 @@ profile_auc_combinations <- function(
     auc_without = numeric(),
     auc_change = numeric()
   )
-  
+
   if (nrow(individual) == 0) {
     return(list(
       individual = individual,
@@ -388,45 +386,45 @@ profile_auc_combinations <- function(
       original_auc = NA_real_
     ))
   }
-  
+
   # Select the top 5 most influential observations
-  selected <- head(individual$observation, top_n)
+  selected <- utils::head(individual$observation, top_n)
   selected <- as.integer(selected)
-  
+
   original_auc <- individual$original_auc[1]
-  
+
   truth <- factor(truth)
   probs <- as.matrix(probs)
-  
+
   probs <- probs[, levels(truth), drop = FALSE]
-  
+
   # Generate every possible combination
   combinations_list <- list()
-  
+
   for (k in seq_along(selected)) {
     combinations_list <- c(
       combinations_list,
-      combn(seq_along(selected), k, simplify = FALSE)
+      utils::combn(seq_along(selected), k, simplify = FALSE)
     )
   }
-  
+
   combinations_list <- lapply(
     combinations_list,
     function(i) selected[i]
   )
-  
+
   results <- empty
-  
+
   # Calculate AUC for each combination
   for (group in combinations_list) {
-    
+
     keep <- !(seq_along(truth) %in% group)
-    
+
     # Skip if removing observations eliminates a class
     if (any(table(truth[keep]) == 0)) {
       next
     }
-    
+
     new_auc <- as.numeric(
       pROC::multiclass.roc(
         response = truth[keep],
@@ -435,7 +433,7 @@ profile_auc_combinations <- function(
         direction = ">"
       )$auc
     )
-    
+
     results <- rbind(
       results,
       data.frame(
@@ -447,16 +445,16 @@ profile_auc_combinations <- function(
       )
     )
   }
-  
+
   # Rank combinations by absolute AUC change
   results <- results[
     order(-abs(results$auc_change)),
     ,
     drop = FALSE
   ]
-  
+
   rownames(results) <- NULL
-  
+
   return(list(
     individual = individual,
     combinations = results,
@@ -465,4 +463,3 @@ profile_auc_combinations <- function(
     original_auc = original_auc
   ))
 }
-

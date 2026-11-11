@@ -2,21 +2,62 @@
 % Please edit documentation in R/mc_auc_ci.R
 \name{mc_auc_ci}
 \alias{mc_auc_ci}
-\title{Multiclass AUC confidence interval}
+\alias{print.mc_auc_ci}
+\title{Bootstrap Confidence Interval for Binary and Multiclass AUC}
 \usage{
-mc_auc_ci(truth, probabilities, n_boot = 1000, conf_level = 0.95, seed = NULL)
+mc_auc_ci(
+  truth,
+  probabilities,
+  n_boot = 1000,
+  conf_level = 0.95,
+  seed = NULL,
+  show_bootstrap_values = FALSE
+)
+
+\method{print}{mc_auc_ci}(x, ...)
 }
 \arguments{
 \item{truth}{True class labels.}
 
-\item{probabilities}{Predicted class probabilities, one column per class.}
+\item{probabilities}{Matrix of predicted class probabilities.}
 
-\item{n_boot}{Number of bootstrap replicates.}
+\item{n_boot}{Number of bootstrap replicates (default: 1000).}
 
-\item{conf_level}{Confidence level for the interval.}
+\item{conf_level}{Confidence level used to calculate the percentile
+bootstrap confidence interval. The default is 0.95 (95\% CI),
+using the 2.5th and 97.5th percentiles of the bootstrap AUC values.
+For example, 0.90 produces a 90\% confidence interval.}
 
 \item{seed}{Optional random seed for reproducibility.}
+
+\item{show_bootstrap_values}{Logical value controlling whether
+individual bootstrap AUC estimates are printed.
+The default is FALSE, which displays only the summary.
+If TRUE, up to 100 bootstrap AUC estimates are printed.
+Each value represents the AUC calculated from one bootstrap sample.
+All successful bootstrap AUC estimates are stored in
+the returned object's bootstrap_values component.}
+
+\item{x}{An object of class mc_auc_ci.}
+
+\item{...}{Additional arguments (unused).}
+}
+\value{
+An object of class mc_auc_ci containing:
+original_auc (AUC calculated from the original data),
+standard_error (standard deviation of bootstrap AUC estimates),
+lower_ci and upper_ci (percentile confidence interval bounds),
+conf_level (selected confidence level),
+n_boot (requested bootstrap replicates),
+n_successful and n_failed (bootstrap counts),
+bootstrap_values (successful bootstrap AUC estimates),
+and show_bootstrap_values (printing preference).
 }
 \description{
-Multiclass AUC confidence interval
+Calculates AUC, bootstrap standard error, and a percentile
+confidence interval using stratified bootstrap resampling.
+}
+\details{
+For binary classification, the second class is treated as positive.
+For multiclass classification, Hand-Till AUC is used.
 }
