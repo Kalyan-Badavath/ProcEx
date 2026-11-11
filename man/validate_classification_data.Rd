@@ -18,15 +18,17 @@ validate_classification_data(
 for each class.}
 
 \item{min_class_n}{Minimum number of observations expected in each class.
-Classes below this value generate a concern.}
+Classes below this value generate a warning.}
 
 \item{imbalance_ratio}{Maximum allowed ratio between the largest and
-smallest class. Ratios above this value generate a concern.}
+smallest class. Ratios above this value generate a warning.}
 }
 \value{
-A list containing the validation status, errors, concerns,
+A list containing the validation status, errors, warnings,
 number of observations, number of classes, class counts, and
-class proportions.
+class proportions. If fewer than 3 observed classes are detected,
+the result also contains a concern explaining that ProcEx is designed
+for multiclass analysis.
 }
 \description{
 Checks whether true class labels and predicted class probabilities
