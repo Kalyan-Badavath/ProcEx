@@ -1,15 +1,28 @@
-test_that("remove method removes observations with missing probabilities", {
+# Helper function for handle_missing() tests
+# Creates a valid mc_roc object with enough observations in each class.
 
-  x <- list(
-    truth = factor(c("A", "B", "C", "A")),
-    probs = data.frame(
-      A = c(0.8, 0.1, 0.2, NA),
-      B = c(0.1, 0.8, 0.2, 0.3),
-      C = c(0.1, 0.1, 0.6, 0.7)
-    )
+make_missing_test_object <- function() {
+
+  truth <- factor(
+    rep(c("A", "B", "C"), each = 12),
+    levels = c("A", "B", "C")
   )
 
-  class(x) <- "mc_roc"
+  probs <- data.frame(
+    A = ifelse(truth == "A", 0.8, 0.1),
+    B = ifelse(truth == "B", 0.8, 0.1),
+    C = ifelse(truth == "C", 0.8, 0.1)
+  )
+
+  mc_roc(truth, probs)
+}
+
+
+test_that("remove method removes observations with missing probabilities", {
+
+  x <- make_missing_test_object()
+
+  x$probs[1, "A"] <- NA
 
   expect_warning(
     result <- handle_missing(x, method = "remove"),
@@ -17,14 +30,20 @@ test_that("remove method removes observations with missing probabilities", {
     fixed = TRUE
   )
 
-  expect_equal(length(result$truth), 3)
-  expect_equal(nrow(result$probs), 3)
+  expect_equal(length(result$truth), 35)
+  expect_equal(nrow(result$probs), 35)
 
   expect_false(anyNA(result$truth))
   expect_false(anyNA(result$probs))
 
   expect_equal(result$missing_info$n_affected, 1)
-  expect_equal(result$missing_info$pct_affected, 25)
+
+  expect_equal(
+    result$missing_info$pct_affected,
+    100 / 36,
+    tolerance = 1e-10
+  )
+
   expect_equal(result$missing_info$n_removed, 1)
   expect_equal(result$missing_info$n_imputed, 0)
   expect_equal(result$missing_info$method, "remove")
@@ -35,16 +54,9 @@ test_that("remove method removes observations with missing probabilities", {
 
 test_that("mean method fills missing probability values", {
 
-  x <- list(
-    truth = factor(c("A", "B", "C", "A")),
-    probs = data.frame(
-      A = c(0.8, 0.1, 0.2, NA),
-      B = c(0.1, 0.8, 0.2, 0.3),
-      C = c(0.1, 0.1, 0.6, 0.7)
-    )
-  )
+  x <- make_missing_test_object()
 
-  class(x) <- "mc_roc"
+  x$probs[1, "A"] <- NA
 
   expect_warning(
     result <- handle_missing(x, method = "mean"),
@@ -52,19 +64,25 @@ test_that("mean method fills missing probability values", {
     fixed = TRUE
   )
 
-  expect_equal(length(result$truth), 4)
-  expect_equal(nrow(result$probs), 4)
+  expect_equal(length(result$truth), 36)
+  expect_equal(nrow(result$probs), 36)
 
   expect_false(anyNA(result$probs))
 
   expect_equal(
     rowSums(result$probs),
-    rep(1, 4),
+    rep(1, 36),
     tolerance = 1e-10
   )
 
   expect_equal(result$missing_info$n_affected, 1)
-  expect_equal(result$missing_info$pct_affected, 25)
+
+  expect_equal(
+    result$missing_info$pct_affected,
+    100 / 36,
+    tolerance = 1e-10
+  )
+
   expect_equal(result$missing_info$n_removed, 0)
   expect_equal(result$missing_info$n_imputed, 1)
   expect_equal(result$missing_info$method, "mean")
@@ -75,16 +93,10 @@ test_that("mean method fills missing probability values", {
 
 test_that("median method fills missing probability values", {
 
-  x <- list(
-    truth = factor(c("A", "B", "C", "A", "B")),
-    probs = data.frame(
-      A = c(0.8, 0.1, 0.2, NA, 0.3),
-      B = c(0.1, 0.8, 0.2, 0.3, NA),
-      C = c(0.1, 0.1, 0.6, 0.7, 0.4)
-    )
-  )
+  x <- make_missing_test_object()
 
-  class(x) <- "mc_roc"
+  x$probs[1, "A"] <- NA
+  x$probs[13, "B"] <- NA
 
   expect_warning(
     result <- handle_missing(x, method = "median"),
@@ -96,12 +108,18 @@ test_that("median method fills missing probability values", {
 
   expect_equal(
     rowSums(result$probs),
-    rep(1, 5),
+    rep(1, 36),
     tolerance = 1e-10
   )
 
   expect_equal(result$missing_info$n_affected, 2)
-  expect_equal(result$missing_info$pct_affected, 40)
+
+  expect_equal(
+    result$missing_info$pct_affected,
+    200 / 36,
+    tolerance = 1e-10
+  )
+
   expect_equal(result$missing_info$n_removed, 0)
   expect_equal(result$missing_info$n_imputed, 2)
   expect_equal(result$missing_info$method, "median")
@@ -112,19 +130,9 @@ test_that("median method fills missing probability values", {
 
 test_that("missing true labels are removed instead of imputed", {
 
-  x <- list(
-    truth = factor(
-      c("A", "B", NA, "C"),
-      levels = c("A", "B", "C")
-    ),
-    probs = data.frame(
-      A = c(0.8, 0.1, 0.2, 0.1),
-      B = c(0.1, 0.8, 0.2, 0.2),
-      C = c(0.1, 0.1, 0.6, 0.7)
-    )
-  )
+  x <- make_missing_test_object()
 
-  class(x) <- "mc_roc"
+  x$truth[1] <- NA
 
   expect_warning(
     result <- handle_missing(x, method = "mean"),
@@ -132,14 +140,20 @@ test_that("missing true labels are removed instead of imputed", {
     fixed = TRUE
   )
 
-  expect_equal(length(result$truth), 3)
-  expect_equal(nrow(result$probs), 3)
+  expect_equal(length(result$truth), 35)
+  expect_equal(nrow(result$probs), 35)
 
   expect_false(anyNA(result$truth))
   expect_false(anyNA(result$probs))
 
   expect_equal(result$missing_info$n_affected, 1)
-  expect_equal(result$missing_info$pct_affected, 25)
+
+  expect_equal(
+    result$missing_info$pct_affected,
+    100 / 36,
+    tolerance = 1e-10
+  )
+
   expect_equal(result$missing_info$n_removed, 1)
   expect_equal(result$missing_info$n_imputed, 0)
 
@@ -149,16 +163,7 @@ test_that("missing true labels are removed instead of imputed", {
 
 test_that("data without missing values is returned unchanged", {
 
-  x <- list(
-    truth = factor(c("A", "B", "C")),
-    probs = data.frame(
-      A = c(0.8, 0.1, 0.2),
-      B = c(0.1, 0.8, 0.2),
-      C = c(0.1, 0.1, 0.6)
-    )
-  )
-
-  class(x) <- "mc_roc"
+  x <- make_missing_test_object()
 
   result <- handle_missing(x, method = "remove")
 
@@ -211,16 +216,7 @@ test_that("mc_roc object must contain truth and probs", {
 
 test_that("invalid missing value method is rejected", {
 
-  x <- list(
-    truth = factor(c("A", "B", "C")),
-    probs = data.frame(
-      A = c(0.8, 0.1, 0.2),
-      B = c(0.1, 0.8, 0.2),
-      C = c(0.1, 0.1, 0.6)
-    )
-  )
-
-  class(x) <- "mc_roc"
+  x <- make_missing_test_object()
 
   expect_error(
     handle_missing(x, method = "unknown")

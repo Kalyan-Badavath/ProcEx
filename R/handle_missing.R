@@ -125,7 +125,8 @@ handle_missing <- function(
       method = method
     )
 
-    return(x)
+    # Rebuild the mc_roc object after the underlying data changed
+    return(mc_refit(x))
   }
 
   # Mean or median imputation
@@ -244,5 +245,6 @@ handle_missing <- function(
     method = method
   )
 
-  return(x)
+  # Rebuild the mc_roc object after removal or imputation
+  return(mc_refit(x))
 }
