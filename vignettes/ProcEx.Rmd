@@ -1,0 +1,226 @@
+---
+title: "Getting started with ProcEx"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with ProcEx}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 3.2, fig.align = "center", dpi = 96)
+```
+
+ProcEx evaluates classification models with more than two classes. It
+answers four questions:
+
+1. **Are the inputs usable?** Labels and predicted probabilities are checked
+   before anything is computed.
+2. **How well does the model separate the classes?** The Hand & Till (2001)
+   multiclass AUC, with the AUC of every pair of classes.
+3. **How sure can we be?** Bootstrap confidence intervals for one model, and
+   a paired bootstrap comparison of two models.
+4. **Where does the model struggle?** Plots of the pairwise ROC curves and
+   AUCs show which pairs of classes are hard to tell apart.
+
+ProcEx builds on the [pROC](https://CRAN.R-project.org/package=pROC) package
+and fills in the multiclass features pROC leaves out: confidence intervals,
+model comparison and plots.
+
+```{r setup}
+library(ProcEx)
+```
+
+## Example data
+
+We fit two multinomial models to the `iris` data: one uses the petal
+measurements, the other only the sepal measurements. Each `predict()` call
+returns one probability column per species, named after the species, which
+is the form ProcEx expects.
+
+```{r models}
+petal_model <- nnet::multinom(Species ~ Petal.Length + Petal.Width,
+                              data = iris, trace = FALSE)
+sepal_model <- nnet::multinom(Species ~ Sepal.Length + Sepal.Width,
+                              data = iris, trace = FALSE)
+
+truth  <- iris$Species
+petals <- predict(petal_model, type = "probs")
+sepals <- predict(sepal_model, type = "probs")
+
+round(sepals[c(1, 51, 101, 120), ], 3)   # one row per species, plus a hard one
+```
+
+(For a real evaluation, predict on data the model has not seen; the models
+here are scored on their training data to keep the example short.)
+
+## 1. Check the inputs
+
+`validate_classification_data()` reports whether the labels and
+probabilities can be analysed, and warns about things that make results less
+reliable, such as very small or very unequal classes.
+
+```{r validate}
+checks <- validate_classification_data(truth, sepals)
+checks$status
+checks$class_counts
+```
+
+`mc_roc()` and `mc_auc_compare()` run these checks themselves, so you rarely
+need to call it directly.
+
+## 2. The multiclass AUC
+
+`mc_roc()` computes the Hand & Till AUC. For every pair of classes it
+measures how well the model ranks the two classes apart, and averages these
+pairwise AUCs.
+
+```{r mc-roc}
+fit <- mc_roc(truth, sepals, label = "Sepal model")
+fit
+```
+
+The overall AUC of `r round(fit$auc, 3)` looks good, but the pairwise table
+shows it is an average of two perfect pairs and one much weaker pair:
+
+```{r pairwise}
+fit$pairwise
+```
+
+`auc_1v2` ranks the rows of the two classes by the probability of the first
+class, `auc_2v1` by the probability of the second; the pair's AUC is their
+mean.
+
+## 3. Plot the pairwise curves
+
+`plot()` draws each pair's two ROC curves, so a weak pair is visible at
+once:
+
+```{r plot-pairs, fig.height = 3}
+plot(fit)
+```
+
+With many classes there are many pairs (7 classes give 21), so a heatmap is
+easier to read. By default its colour scale stretches over the observed
+AUCs, so the weakest pairs stand out:
+
+```{r plot-heatmap, fig.width = 5, fig.height = 4}
+plot(fit, type = "heatmap")
+```
+
+## 4. How sure can we be?
+
+`mc_auc_ci()` resamples rows within each class (a stratified bootstrap) and
+reports a percentile confidence interval for the AUC.
+
+```{r ci}
+ci <- mc_auc_ci(truth, sepals, n_boot = 200, seed = 1)
+ci
+```
+
+The histogram shows the bootstrap AUCs; the shaded band is the confidence
+interval and the solid line is the AUC of the original data.
+
+```{r ci-plot, fig.height = 3.4}
+plot(ci)
+```
+
+## 5. Compare two models
+
+`mc_auc_compare()` asks whether the petal model is really better than the
+sepal model, or whether the gap could be chance. Each bootstrap replicate
+resamples the rows once and scores both models on those same rows, which
+keeps the comparison paired. Model 1 is the petal model and Model 2 the
+sepal model, in the order they are passed.
+
+```{r compare}
+comparison <- mc_auc_compare(truth, petals, sepals, n_boot = 500, seed = 1)
+comparison
+```
+
+The interval for the difference does not include zero, so the petal model is
+better at the 95% level. The plot shows the same thing: the shaded interval
+lies to the right of the dashed zero line.
+
+```{r compare-plot, fig.height = 3.6}
+plot(comparison, labels = c("Petals", "Sepals"))
+```
+
+The per-pair AUCs show *where* the petal model gains: both models separate
+*setosa* perfectly, so the whole difference comes from telling *versicolor*
+from *virginica*.
+
+```{r compare-pairwise}
+comparison$pairwise
+```
+
+```{r compare-pairs, fig.height = 2.8}
+plot(comparison, type = "pairs", labels = c("Petals", "Sepals"))
+```
+
+## 6. Missing values
+
+`mc_roc()` keeps rows with a missing label or probability in the object but
+leaves them out of the AUC, with a warning:
+
+```{r missing}
+with_gaps <- sepals
+with_gaps[c(5, 70), "setosa"] <- NA
+fit_gaps <- mc_roc(truth, with_gaps)
+```
+
+`mc_auc_ci()` stops when there are missing values, and `mc_auc_compare()`
+passes them to pROC, so remove or fill missing values before running either.
+For an `mc_roc` object, see `?handle_missing`.
+
+## 7. Why the ROC direction is fixed
+
+An ROC curve needs a direction: are higher scores expected for the first
+class or the second? pROC's `roc()`, and `multiclass.roc()` with a single
+score, default to `direction = "auto"`, which picks whichever direction
+looks better *on the data being evaluated*. That choice favours the model,
+so AUCs come out too high. On scores that are pure noise, where the true AUC
+is 0.5:
+
+```{r direction}
+set.seed(1)
+noise_auc <- replicate(200, {
+  y <- factor(sample(c("a", "b"), 60, replace = TRUE))
+  s <- runif(60)
+  c(auto  = as.numeric(pROC::auc(pROC::roc(y, s, quiet = TRUE))),
+    fixed = as.numeric(pROC::auc(pROC::roc(y, s, quiet = TRUE,
+                                           direction = "<"))))
+})
+round(rowMeans(noise_auc), 3)
+```
+
+ProcEx always fixes the direction (the probability of a class should be
+higher for rows of that class), so a model that is worse than chance gets an
+AUC below 0.5 instead of being flipped to look good:
+
+```{r worse-than-chance}
+swapped <- sepals[, c("versicolor", "virginica", "setosa")]
+colnames(swapped) <- colnames(sepals)    # probabilities given to the wrong class
+mc_roc(truth, swapped)$auc
+```
+
+## Requirements and limits
+
+* `mc_roc()`, `mc_auc_compare()` and the plots need at least three classes.
+  `mc_auc_ci()` also handles two classes; for binary problems pROC itself
+  offers more (DeLong intervals, `roc.test()`).
+* Probabilities need one column per class, named exactly as the class labels
+  (any order). `mc_roc()` also checks that values are between 0 and 1 and
+  that rows sum to 1, and rejects scores that are not probabilities.
+* Bootstrap intervals describe the uncertainty from which rows happened to
+  be in the evaluation data; they do not include the variation from
+  retraining the model.
+
+See `NEWS.md` in the package source for changes and known issues.
+
+## Reference
+
+Hand, D. J. & Till, R. J. (2001). A simple generalisation of the area under
+the ROC curve for multiple class classification problems. *Machine Learning*,
+45, 171-186.

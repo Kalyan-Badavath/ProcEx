@@ -2,7 +2,7 @@
 % Please edit documentation in R/mc_auc_compare.R
 \name{mc_auc_compare}
 \alias{mc_auc_compare}
-\alias{print.mc_compare}
+\alias{print.mc_auc_compare}
 \title{Compares the Hand & Till multiclass AUC of two classification models
 using a paired stratified bootstrap to quantify uncertainty in their
 AUC difference.
@@ -21,7 +21,7 @@ mc_auc_compare(
   seed = NULL
 )
 
-\method{print}{mc_compare}(x, ...)
+\method{print}{mc_auc_compare}(x, ...)
 }
 \arguments{
 \item{truth}{True class labels (factor or character), or an \code{mc_roc}
@@ -48,24 +48,32 @@ and 1. Default 0.95.}
 
 \item{seed}{Optional integer, for a reproducible bootstrap.}
 
-\item{x}{An \code{mc_compare} object.}
+\item{x}{An \code{mc_auc_compare} object.}
 
 \item{...}{Ignored.}
 }
 \value{
-An object of class \code{mc_compare}, a list containing:
+An object of class \code{mc_auc_compare}, a list containing:
 \item{auc1, auc2}{the two multiclass AUCs}
 \item{difference}{auc1 - auc2 on the observed data}
-\item{lower, upper}{confidence interval for the difference}
-\item{se}{bootstrap standard error of the difference}
+\item{lower_ci, upper_ci}{confidence interval for the difference}
+\item{standard_error}{bootstrap standard error of the difference}
 \item{p_value}{two-sided bootstrap p-value}
 \item{conf_level}{the confidence level used}
-\item{n_boot, n_failed}{successful and failed replicates}
-\item{replicates}{the bootstrap differences}
+\item{n_boot}{bootstrap replicates requested}
+\item{n_successful, n_failed}{successful and failed replicates}
+\item{bootstrap_values}{the successful bootstrap differences}
+\item{pairwise}{data frame, one row per class pair: pair, class1,
+class2, auc1, auc2 and difference, from the observed data (no
+intervals), or \code{NULL} if the probability columns are not named
+after the classes. Used by \code{plot(type = "pairs")}.}
+
+The component names follow \code{\link[=mc_auc_ci]{mc_auc_ci()}}, so the interval, standard
+error and replicate counts are read the same way from both results.
 }
 \description{
-#' Hand & Till multiclass AUC values are computed using
-\code{\link[pROC:multiclass.roc]{pROC::multiclass.roc()}} for the observed data and each bootstrap
+Hand & Till multiclass AUC values are computed using
+\code{\link[pROC:multiclass]{pROC::multiclass.roc()}} for the observed data and each bootstrap
 replicate, consistent with the AUC calculation used by \code{\link[=mc_roc]{mc_roc()}}.
 }
 \examples{
@@ -83,5 +91,6 @@ mc_auc_compare(iris$Species,
 
 }
 \seealso{
-\code{\link[=mc_auc_ci]{mc_auc_ci()}} for one model, \code{\link[=mc_roc]{mc_roc()}} to build the object.
+\code{\link[=mc_auc_ci]{mc_auc_ci()}} for one model, \code{\link[=mc_roc]{mc_roc()}} to build the object,
+\code{\link[=plot.mc_auc_compare]{plot.mc_auc_compare()}} to plot the result.
 }

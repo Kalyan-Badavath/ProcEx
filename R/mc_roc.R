@@ -194,7 +194,7 @@ mc_refit <- function(x, ...) {
   list(auc = as.numeric(roc$auc), pairwise = pairwise, roc = roc)
 }
 
-# ---- input handling ---------------------------------------------------------
+# Input handling
 
 .mc_complete <- function(truth, probs) {
   !is.na(truth) & stats::complete.cases(probs)
@@ -323,7 +323,7 @@ mc_refit <- function(x, ...) {
   if (is.name(expr)) as.character(expr) else NULL
 }
 
-# ---- print and summary ------------------------------------------------------
+# Print and summary
 
 .mc_fmt <- function(x, digits) formatC(x, format = "f", digits = digits)
 

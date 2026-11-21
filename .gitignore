@@ -5,3 +5,5 @@
 .DS_Store
 .quarto
 data_test/
+/doc/
+/Meta/

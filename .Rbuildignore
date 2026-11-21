@@ -4,4 +4,6 @@
 ^LICENSE\.md$
 ^development$
 ^data_test$
-^dry+bean+dataset\.zip$
+^inst/extdata/dry\+bean\+dataset\.zip$
+^doc$
+^Meta$

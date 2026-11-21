@@ -5,9 +5,7 @@
 # This file uses testthat and the functions loaded by ProcEx.
 # No manual source() call or external dataset is required.
 
-# ------------------------------------------------------------
 # Test data helpers
-# ------------------------------------------------------------
 
 make_ci_multiclass_data <- function() {
   truth <- factor(c(rep("A", 8), rep("B", 6), rep("C", 6)))
@@ -114,16 +112,14 @@ check_ci_result <- function(x, expected_n,
   expect_true(all(is.finite(x$bootstrap_values)))
 }
 
-# ------------------------------------------------------------
 # Test 1: Multiclass AUC and bootstrap confidence interval
-# ------------------------------------------------------------
 
 test_that("mc_auc_ci calculates multiclass AUC and CI", {
   d <- make_ci_multiclass_data()
 
   result <- mc_auc_ci(
     truth = d$truth,
-    probabilities = d$probabilities,
+    probs = d$probabilities,
     n_boot = 100,
     conf_level = 0.95,
     seed = 42
@@ -167,16 +163,14 @@ test_that("mc_auc_ci calculates multiclass AUC and CI", {
   )
 })
 
-# ------------------------------------------------------------
 # Test 2: Binary classification support
-# ------------------------------------------------------------
 
 test_that("mc_auc_ci supports binary classification", {
   d <- make_ci_binary_data()
 
   result <- mc_auc_ci(
     truth = d$truth,
-    probabilities = d$probabilities,
+    probs = d$probabilities,
     n_boot = 100,
     seed = 42
   )
@@ -204,9 +198,7 @@ test_that("mc_auc_ci supports binary classification", {
   )
 })
 
-# ------------------------------------------------------------
 # Test 3: Optional bootstrap output
-# ------------------------------------------------------------
 
 test_that("bootstrap values can be displayed or hidden", {
   d <- make_ci_binary_data()
@@ -276,9 +268,7 @@ test_that("bootstrap values can be displayed or hidden", {
   expect_length(large_result$bootstrap_values, 150)
 })
 
-# ------------------------------------------------------------
 # Test 4: Input validation
-# ------------------------------------------------------------
 
 test_that("mc_auc_ci rejects invalid inputs", {
   d <- make_ci_multiclass_data()
@@ -437,9 +427,7 @@ test_that("mc_auc_ci rejects invalid inputs", {
   )
 })
 
-# ------------------------------------------------------------
 # Test 5: Reproducibility
-# ------------------------------------------------------------
 
 test_that("same seed gives reproducible bootstrap results", {
   d <- make_ci_multiclass_data()
@@ -487,9 +475,7 @@ test_that("same seed gives reproducible bootstrap results", {
   )
 })
 
-# ------------------------------------------------------------
 # Test 6: Different confidence levels
-# ------------------------------------------------------------
 
 test_that("confidence level controls percentile CI", {
   d <- make_ci_multiclass_data()
