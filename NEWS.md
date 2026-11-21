@@ -45,24 +45,7 @@
 * DESCRIPTION: `URL`, `BugReports`, vignette support, and `graphics` and
   `grDevices` in Imports (used by the plots).
 
-## Known issues (not changed in this version)
-
-* `handle_missing()` changes the data but does not recalculate the AUC, so
-  `$auc`, `$pairwise`, `$n`, `$n_used` and `$complete` describe the data
-  before handling.
-* `profile_outliers()` applies the IQR rule to each probability column
-  across all rows. With four or more classes this flags most confident,
-  correct predictions (77% of Dry Bean test rows), and
-  `profile_auc_influence()` and `profile_auc_combinations()` start from
-  these flags.
-* `mc_auc_ci()` gives a wrong interval when a class has a single row, and
-  its `seed` argument resets the caller's random-number stream.
-* `mc_auc_compare()` does not run the input checks that `mc_roc()` runs,
-  passes missing values to pROC (which drops them separately for each pair
-  of classes, without a warning), and its `seed` argument resets the
-  caller's random-number stream.
-* `validate_classification_data()` requires rows to sum to 1 within 1e-6, so
-  probabilities rounded to 3 decimals are rejected by `mc_roc()`.
+## Known issues
 * Pairwise confidence intervals are not implemented yet.
 
 # ProcEx 0.0.0.9000
