@@ -6,7 +6,7 @@
 #' applies the SAME sampled rows to both models. This preserves the paired
 #' structure because both models are evaluated on identical bootstrap samples.
 #'
-#' #' Hand & Till multiclass AUC values are computed using
+#' Hand & Till multiclass AUC values are computed using
 #' [pROC::multiclass.roc()] for the observed data and each bootstrap
 #' replicate, consistent with the AUC calculation used by [mc_roc()].
 #'
@@ -29,15 +29,23 @@
 #'   and 1. Default 0.95.
 #' @param seed Optional integer, for a reproducible bootstrap.
 #'
-#' @return An object of class `mc_compare`, a list containing:
+#' @return An object of class `mc_auc_compare`, a list containing:
 #'   \item{auc1, auc2}{the two multiclass AUCs}
 #'   \item{difference}{auc1 - auc2 on the observed data}
-#'   \item{lower, upper}{confidence interval for the difference}
-#'   \item{se}{bootstrap standard error of the difference}
+#'   \item{lower_ci, upper_ci}{confidence interval for the difference}
+#'   \item{standard_error}{bootstrap standard error of the difference}
 #'   \item{p_value}{two-sided bootstrap p-value}
 #'   \item{conf_level}{the confidence level used}
-#'   \item{n_boot, n_failed}{successful and failed replicates}
-#'   \item{replicates}{the bootstrap differences}
+#'   \item{n_boot}{bootstrap replicates requested}
+#'   \item{n_successful, n_failed}{successful and failed replicates}
+#'   \item{bootstrap_values}{the successful bootstrap differences}
+#'   \item{pairwise}{data frame, one row per class pair: pair, class1,
+#'     class2, auc1, auc2 and difference, from the observed data (no
+#'     intervals), or `NULL` if the probability columns are not named
+#'     after the classes. Used by `plot(type = "pairs")`.}
+#'
+#'   The component names follow [mc_auc_ci()], so the interval, standard
+#'   error and replicate counts are read the same way from both results.
 #'
 #' @examples
 #' \donttest{
@@ -52,7 +60,8 @@
 #'                n_boot = 100, seed = 42)
 #' }
 #'
-#' @seealso [mc_auc_ci()] for one model, [mc_roc()] to build the object.
+#' @seealso [mc_auc_ci()] for one model, [mc_roc()] to build the object,
+#'   [plot.mc_auc_compare()] to plot the result.
 #' @export
 mc_auc_compare <- function(truth,
                            probs1,
@@ -114,6 +123,9 @@ mc_auc_compare <- function(truth,
 
   auc1 <- auc_of(truth, probs1)
   auc2 <- auc_of(truth, probs2)
+  # Per-pair AUCs for plot(type = "pairs").
+  pairwise <- tryCatch(.mc_compare_pairwise(truth, probs1, probs2, levels),
+                       error = function(e) NULL)
 
   class_rows <- split(seq_along(truth), truth, drop = TRUE)
   boot_differences <- rep(NA_real_, n_boot)
@@ -152,44 +164,74 @@ mc_auc_compare <- function(truth,
   ci    <- stats::quantile(ok, c(alpha / 2, 1 - alpha / 2), names = FALSE)
 
   structure(
-    list(auc1       = auc1,
-         auc2       = auc2,
-         difference = auc1 - auc2,
-         lower      = ci[1],
-         upper      = ci[2],
-         se         = stats::sd(ok),
-         p_value    = min(2 * min(mean(ok >= 0), mean(ok <= 0)), 1),
-         conf_level = conf_level,
-         n_boot     = n_ok,
-         n_failed   = n_failed,
-         replicates = ok),
-    class = "mc_compare"
+    list(auc1             = auc1,
+         auc2             = auc2,
+         difference       = auc1 - auc2,
+         lower_ci         = ci[1],
+         upper_ci         = ci[2],
+         standard_error   = stats::sd(ok),
+         p_value          = min(2 * min(mean(ok >= 0), mean(ok <= 0)), 1),
+         conf_level       = conf_level,
+         n_boot           = n_boot,
+         n_successful     = n_ok,
+         n_failed         = n_failed,
+         bootstrap_values = ok,
+         pairwise         = pairwise),
+    class = "mc_auc_compare"
   )
 }
 
+# Hand & Till AUC of each class pair for both models.
+.mc_compare_pairwise <- function(truth, probs1, probs2, levels) {
+  present <- levels[levels %in% as.character(truth)]
+  pairs   <- utils::combn(present, 2)
 
-#' @param x An `mc_compare` object.
+  named <- function(p) !is.null(colnames(p)) && all(present %in% colnames(p))
+  if (length(present) < 3 || !named(probs1) || !named(probs2)) return(NULL)
+
+  pair_auc <- function(p) {
+    p <- p[, present, drop = FALSE]
+    roc <- suppressMessages(pROC::multiclass.roc(truth, p, levels = present))
+    expected <- paste(pairs[1, ], pairs[2, ], sep = "/")
+    if (!identical(names(roc$rocs), expected)) {
+      stop("pROC returned class pairs in an unexpected order.", call. = FALSE)
+    }
+    vapply(roc$rocs, function(r) {
+      mean(c(as.numeric(pROC::auc(r[[1]])), as.numeric(pROC::auc(r[[2]]))))
+    }, numeric(1))
+  }
+
+  a1 <- unname(pair_auc(probs1))
+  a2 <- unname(pair_auc(probs2))
+  data.frame(pair = paste(pairs[1, ], "vs", pairs[2, ]),
+             class1 = pairs[1, ], class2 = pairs[2, ],
+             auc1 = a1, auc2 = a2, difference = a1 - a2,
+             stringsAsFactors = FALSE)
+}
+
+
+#' @param x An `mc_auc_compare` object.
 #' @param ... Ignored.
 #' @rdname mc_auc_compare
 #' @export
-print.mc_compare <- function(x, ...) {
+print.mc_auc_compare <- function(x, ...) {
   cat("\nMulticlass AUC comparison (paired stratified bootstrap)\n")
   cat(sprintf("  Model 1 AUC  : %.4f\n", x$auc1))
   cat(sprintf("  Model 2 AUC  : %.4f\n", x$auc2))
   cat(sprintf("  Difference   : %.4f\n", x$difference))
   cat(sprintf("  %.0f%% CI       : %.4f to %.4f\n",
-              x$conf_level * 100, x$lower, x$upper))
-  cat(sprintf("  Bootstrap SE : %.4f\n", x$se))
+              x$conf_level * 100, x$lower_ci, x$upper_ci))
+  cat(sprintf("  Bootstrap SE : %.4f\n", x$standard_error))
 
-  # For display, an empirical p-value of zero is reported as < 1 / n_boot.
-  if (x$p_value < 1 / x$n_boot) {
-    cat(sprintf("  p-value      : < %.4f\n", 1 / x$n_boot))
+  # For display, an empirical p-value of zero is reported as < 1 / n_successful.
+  if (x$p_value < 1 / x$n_successful) {
+    cat(sprintf("  p-value      : < %.4f\n", 1 / x$n_successful))
   } else {
     cat(sprintf("  p-value      : %.4f\n", x$p_value))
   }
 
   cat(sprintf("  Replicates   : %d successful, %d failed\n",
-              x$n_boot, x$n_failed))
+              x$n_successful, x$n_failed))
   cat("\n")
   invisible(x)
 }

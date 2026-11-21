@@ -8,7 +8,7 @@
 #' For multiclass classification, Hand-Till AUC is used.
 #'
 #' @param truth True class labels.
-#' @param probabilities Matrix of predicted class probabilities.
+#' @param probs Matrix of predicted class probabilities.
 #' @param n_boot Number of bootstrap replicates (default: 1000).
 #' @param conf_level Confidence level used to calculate the percentile
 #'   bootstrap confidence interval. The default is 0.95 (95% CI),
@@ -35,22 +35,22 @@
 #'
 #' @export
 mc_auc_ci <- function(truth,
-                      probabilities,
+                      probs,
                       n_boot = 1000,
                       conf_level = 0.95,
                       seed = NULL,
                       show_bootstrap_values = FALSE) {
 
   # Convert probabilities to a matrix
-  probabilities <- as.matrix(probabilities)
+  probs <- as.matrix(probs)
 
   # Check missing values
-  if (anyNA(truth) || anyNA(probabilities)) {
+  if (anyNA(truth) || anyNA(probs)) {
     stop("Missing values detected. Please handle missing data before running mc_auc_ci().")
   }
 
   # Check number of observations
-  if (length(truth) != nrow(probabilities)) {
+  if (length(truth) != nrow(probs)) {
     stop("The number of class labels must match the number of probability rows.")
   }
 
@@ -66,24 +66,24 @@ mc_auc_ci <- function(truth,
   }
 
   # Check probability column names
-  if (is.null(colnames(probabilities)) ||
-      anyDuplicated(colnames(probabilities)) > 0 ||
-      !setequal(colnames(probabilities), classes)) {
+  if (is.null(colnames(probs)) ||
+      anyDuplicated(colnames(probs)) > 0 ||
+      !setequal(colnames(probs), classes)) {
     stop("Probability column names must uniquely match the class labels in truth.")
   }
 
   # Check probabilities are numeric
-  if (!is.numeric(probabilities)) {
+  if (!is.numeric(probs)) {
     stop("Probabilities must be numeric.")
   }
 
   # Check finite probability values
-  if (any(!is.finite(probabilities))) {
+  if (any(!is.finite(probs))) {
     stop("Probabilities must contain only finite numeric values.")
   }
 
   # Check probabilities are between 0 and 1
-  if (any(probabilities < 0 | probabilities > 1)) {
+  if (any(probs < 0 | probs > 1)) {
     stop("Probability values must be between 0 and 1.")
   }
 
@@ -169,7 +169,7 @@ mc_auc_ci <- function(truth,
   # Calculate the original AUC
   original_auc <- calculate_auc(
     y = truth,
-    probs = probabilities
+    probs = probs
   )
 
   # Stratified bootstrap resampling
@@ -199,7 +199,7 @@ mc_auc_ci <- function(truth,
     bootstrap_truth <- truth[bootstrap_index]
 
     bootstrap_probabilities <-
-      probabilities[bootstrap_index, , drop = FALSE]
+      probs[bootstrap_index, , drop = FALSE]
 
     # Calculate AUC for this bootstrap sample
     bootstrap_values[b] <- tryCatch({

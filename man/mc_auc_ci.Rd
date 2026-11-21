@@ -7,7 +7,7 @@
 \usage{
 mc_auc_ci(
   truth,
-  probabilities,
+  probs,
   n_boot = 1000,
   conf_level = 0.95,
   seed = NULL,
@@ -19,7 +19,7 @@ mc_auc_ci(
 \arguments{
 \item{truth}{True class labels.}
 
-\item{probabilities}{Matrix of predicted class probabilities.}
+\item{probs}{Matrix of predicted class probabilities.}
 
 \item{n_boot}{Number of bootstrap replicates (default: 1000).}
 

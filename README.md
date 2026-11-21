@@ -1,6 +1,6 @@
 # ProcEx
 
-ProcEx is an R package for evaluating classification models using ROC analysis, Hand–Till multiclass AUC, bootstrap confidence intervals, model comparison, data validation, missing-value handling, and prediction outlier detection.
+ProcEx is an R package for evaluating classification models using ROC analysis, Hand–Till multiclass AUC, bootstrap confidence intervals, model comparison, plots of pairwise ROC curves and AUCs, data validation, missing-value handling, and prediction outlier detection.
 
 The package focuses on multiclass classification analysis and provides tools for assessing model performance, identifying data-quality issues, and understanding statistical uncertainty.
 
@@ -20,10 +20,22 @@ Install ProcEx:
 remotes::install_github("Kalyan-Badavath/ProcEx")
 ```
 
+To also install the introductory vignette, build it during installation:
+
+```r
+remotes::install_github("Kalyan-Badavath/ProcEx", build_vignettes = TRUE)
+```
+
 Load the package:
 
 ```r
 library(ProcEx)
+```
+
+Open the vignette (if it was built):
+
+```r
+vignette("ProcEx")
 ```
 
 Check the installed version:
@@ -48,6 +60,12 @@ ProcEx provides six main user-facing functions:
 - `profile_outliers()` – Identifies unusual prediction probabilities and high-confidence incorrect predictions.
 - `mc_auc_ci()` – Estimates bootstrap confidence intervals and standard errors for binary or multiclass AUC.
 - `mc_auc_compare()` – Compares two multiclass classification models using paired stratified bootstrap resampling.
+
+Results can be plotted:
+
+- `plot()` on an `mc_roc` object – ROC curves for every pair of classes, or a heatmap of the pairwise AUCs.
+- `plot()` on an `mc_auc_ci` result – the bootstrap AUCs, with the confidence interval shaded.
+- `plot()` on an `mc_auc_compare` result – the bootstrap distribution of the AUC difference, or each class pair's AUC under both models.
 
 Additional exported utilities are available for investigating the influence of unusual observations on multiclass AUC.
 
@@ -188,6 +206,26 @@ The pairwise comparison results can be viewed using:
 roc_fit$pairwise
 ```
 
+### Plot the pairwise ROC curves
+
+The multiclass AUC is an average over every pair of classes, so one weak pair can hide behind a high overall value. `plot()` shows each pair:
+
+```r
+plot(roc_fit)
+```
+
+Each panel shows one pair of classes with its two Hand–Till curves (one ranked by each class's probability) and their AUCs. With more than 25 pairs, the 25 pairs with the lowest AUC are drawn; choose others with `pairs`:
+
+```r
+plot(roc_fit, pairs = c("DERMASON vs SIRA", "BARBUNYA vs CALI"))
+```
+
+For many classes, a heatmap shows every pair at once. By default the colour scale stretches over the observed AUCs, so the weakest pairs stand out even when all AUCs are high:
+
+```r
+plot(roc_fit, type = "heatmap")
+```
+
 ## Handle Missing Values
 
 The `handle_missing()` function supports missing-data handling for an `mc_roc` object.
@@ -266,7 +304,7 @@ The function calculates the original AUC, bootstrap standard error, and percenti
 ```r
 ci_result <- mc_auc_ci(
   truth = truth_test,
-  probabilities = probs1,
+  probs = probs1,
   n_boot = 200,
   conf_level = 0.95,
   seed = 42
@@ -284,6 +322,12 @@ ci_result$n_successful
 ci_result$n_failed
 ```
 
+Plot the bootstrap AUCs, with the confidence interval shaded and the AUC of the original data marked:
+
+```r
+plot(ci_result)
+```
+
 Users can control the number of bootstrap replicates, confidence level, and random seed.
 
 The function also supports the `show_bootstrap_values` parameter.
@@ -293,7 +337,7 @@ For example:
 ```r
 ci_result <- mc_auc_ci(
   truth = truth_test,
-  probabilities = probs1,
+  probs = probs1,
   n_boot = 200,
   conf_level = 0.95,
   seed = 42,
@@ -344,23 +388,45 @@ compare_result <- mc_auc_compare(
 compare_result
 ```
 
+The main results:
+
+```r
+compare_result$difference
+compare_result$lower_ci
+compare_result$upper_ci
+compare_result$standard_error
+compare_result$p_value
+```
+
 The results include:
 
-- AUC for Model 1.
-- AUC for Model 2.
-- Difference between the two AUC values.
-- Bootstrap confidence interval for the difference.
-- Bootstrap standard error.
-- Two-sided bootstrap p-value.
-- Numbers of successful and failed bootstrap replicates.
+- `auc1`, `auc2`: AUC for each model.
+- `difference`: `auc1 - auc2`.
+- `lower_ci`, `upper_ci`: bootstrap confidence interval for the difference.
+- `standard_error`: bootstrap standard error.
+- `p_value`: two-sided bootstrap p-value.
+- `n_boot`, `n_successful`, `n_failed`: replicates requested, successful and failed.
+- `bootstrap_values`: the bootstrap differences.
+- `pairwise`: each class pair's AUC under both models.
 
-The function reports very small empirical bootstrap p-values as less than `1 / n_boot`, reflecting the resolution of the resampling procedure.
+These names match `mc_auc_ci()`, so both bootstrap results are read the same way.
+
+The function reports very small empirical bootstrap p-values as less than `1 / n_successful`, reflecting the resolution of the resampling procedure.
+
+Plot the comparison:
+
+```r
+plot(compare_result, labels = c("All features", "Size features"))
+plot(compare_result, type = "pairs", labels = c("All features", "Size features"))
+```
+
+The first plot shows the bootstrap differences with the confidence interval shaded and zero marked: if the shaded interval does not cover zero, the models differ at that confidence level. The second shows which pairs of classes each model separates better.
 
 ## Important Considerations
 
 ProcEx functions have specific input requirements.
 
-Predicted probabilities should correspond to the supplied true class labels, and the probability columns should represent the relevant classes.
+Predicted probabilities should correspond to the supplied true class labels, with one probability column per class, named exactly as the class labels (any order). `mc_roc()` also checks that values are between 0 and 1 and that each row sums to 1, and rejects other scores such as SVM decision values or logits.
 
 The main multiclass ROC and model comparison functions require at least three classes, while `mc_auc_ci()` also supports binary AUC estimation.
 
@@ -376,11 +442,15 @@ ProcEx is developed as a structured R package with source code, function documen
 
 Automated tests are implemented using `testthat`.
 
-During development, the recorded package test run produced 579 passing assertions, with zero failures, zero warnings, and zero skipped tests.
+For version 0.0.0.9001, the package test run produced 134 tests with 851 passing expectations, with zero failures, zero warnings, and zero skipped tests.
 
-The recorded R CMD check also completed with zero errors, zero warnings, and zero notes.
+The recorded R CMD check, including building the vignette, also completed with zero errors, zero warnings, and zero notes.
 
 These results describe the tested package version and should be updated if subsequent changes are made.
+
+## Changes and Known Issues
+
+See `NEWS.md` for what changed in each version and for known issues still to be fixed.
 
 ## Project Repository
 

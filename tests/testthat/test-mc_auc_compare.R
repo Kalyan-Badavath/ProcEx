@@ -47,23 +47,38 @@ make_iris_pair <- function() {
 
 
 
-test_that("returns a well-formed mc_compare object", {
+test_that("returns a well-formed mc_auc_compare object", {
   d <- make_iris_pair()
   res <- mc_auc_compare(d$truth, d$strong, d$weak, n_boot = 100, seed = 42)
 
-  expect_s3_class(res, "mc_compare")
-  expect_named(res, c("auc1", "auc2", "difference", "lower", "upper", "se",
-                      "p_value", "conf_level", "n_boot", "n_failed",
-                      "replicates"))
-  expect_equal(res$n_boot + res$n_failed, 100)
-  expect_length(res$replicates, res$n_boot)
-  expect_lte(res$lower, res$upper)
+  expect_s3_class(res, "mc_auc_compare")
+  expect_named(res, c("auc1", "auc2", "difference", "lower_ci", "upper_ci",
+                      "standard_error", "p_value", "conf_level", "n_boot",
+                      "n_successful", "n_failed", "bootstrap_values",
+                      "pairwise"))
+  expect_equal(res$n_boot, 100)
+  expect_equal(res$n_successful + res$n_failed, 100)
+  expect_length(res$bootstrap_values, res$n_successful)
+  expect_lte(res$lower_ci, res$upper_ci)
   expect_true(res$auc1 >= 0 && res$auc1 <= 1)
   expect_true(res$auc2 >= 0 && res$auc2 <= 1)
   expect_equal(res$difference, res$auc1 - res$auc2)
-  expect_equal(res$se, stats::sd(res$replicates))
+  expect_equal(res$standard_error, stats::sd(res$bootstrap_values))
   expect_true(res$p_value >= 0 && res$p_value <= 1)
   expect_equal(res$conf_level, 0.95)
+})
+
+test_that("interval, error and replicate names match mc_auc_ci()", {
+  d <- make_iris_pair()
+  cmp <- mc_auc_compare(d$truth, d$strong, d$weak, n_boot = 20, seed = 1)
+  one <- mc_auc_ci(d$truth, d$strong, n_boot = 20, seed = 1)
+  shared <- c("lower_ci", "upper_ci", "standard_error", "conf_level",
+              "n_boot", "n_successful", "n_failed", "bootstrap_values")
+
+  expect_true(all(shared %in% names(cmp)))
+  expect_true(all(shared %in% names(one)))
+  # n_boot means the number requested in both
+  expect_equal(cmp$n_boot, one$n_boot)
 })
 
 test_that("each AUC matches pROC and an independent Hand & Till calculation", {
@@ -84,11 +99,11 @@ test_that("comparing a model with itself gives exactly zero", {
   d <- make_iris_pair()
   res <- mc_auc_compare(d$truth, d$strong, d$strong, n_boot = 100, seed = 1)
 
-  expect_true(all(res$replicates == 0))
+  expect_true(all(res$bootstrap_values == 0))
   expect_equal(res$difference, 0)
-  expect_equal(res$lower, 0)
-  expect_equal(res$upper, 0)
-  expect_equal(res$se, 0)
+  expect_equal(res$lower_ci, 0)
+  expect_equal(res$upper_ci, 0)
+  expect_equal(res$standard_error, 0)
   expect_equal(res$p_value, 1)
 })
 
@@ -98,9 +113,9 @@ test_that("swapping the models flips the sign (the bootstrap is paired)", {
   b <- mc_auc_compare(d$truth, d$weak, d$strong, n_boot = 100, seed = 5)
 
   expect_equal(b$difference, -a$difference)
-  expect_equal(b$replicates, -a$replicates)
-  expect_equal(b$lower, -a$upper)
-  expect_equal(b$upper, -a$lower)
+  expect_equal(b$bootstrap_values, -a$bootstrap_values)
+  expect_equal(b$lower_ci, -a$upper_ci)
+  expect_equal(b$upper_ci, -a$lower_ci)
   expect_equal(b$p_value, a$p_value)
 })
 
@@ -110,9 +125,9 @@ test_that("the same seed reproduces the result; a different seed does not", {
   b <- mc_auc_compare(d$truth, d$strong, d$weak, n_boot = 100, seed = 99)
   c <- mc_auc_compare(d$truth, d$strong, d$weak, n_boot = 100, seed = 100)
 
-  expect_identical(a$replicates, b$replicates)
-  expect_identical(a$lower, b$lower)
-  expect_false(identical(a$replicates, c$replicates))
+  expect_identical(a$bootstrap_values, b$bootstrap_values)
+  expect_identical(a$lower_ci, b$lower_ci)
+  expect_false(identical(a$bootstrap_values, c$bootstrap_values))
 })
 
 test_that("a better model is detected", {
@@ -120,7 +135,7 @@ test_that("a better model is detected", {
   res <- mc_auc_compare(d$truth, d$strong, d$weak, n_boot = 200, seed = 42)
 
   expect_gt(res$difference, 0)
-  expect_gt(res$lower, 0)
+  expect_gt(res$lower_ci, 0)
   expect_lt(res$p_value, 0.05)
 })
 
@@ -130,8 +145,8 @@ test_that("two equally useless models are not called different", {
   p2 <- sim_mc(n = 300, k = 4, signal = 0, seed = 6)$p   # pure noise
   res <- mc_auc_compare(y, p1, p2, n_boot = 200, seed = 11)
 
-  expect_lt(res$lower, 0)
-  expect_gt(res$upper, 0)
+  expect_lt(res$lower_ci, 0)
+  expect_gt(res$upper_ci, 0)
   expect_gt(res$p_value, 0.05)
 })
 
@@ -142,7 +157,7 @@ test_that("a higher conf_level gives a wider interval", {
   wide   <- mc_auc_compare(d$truth, d$strong, d$weak,
                            n_boot = 200, conf_level = 0.99, seed = 7)
 
-  expect_gt(wide$upper - wide$lower, narrow$upper - narrow$lower)
+  expect_gt(wide$upper_ci - wide$lower_ci, narrow$upper_ci - narrow$lower_ci)
   expect_equal(wide$conf_level, 0.99)
 })
 
@@ -179,11 +194,11 @@ test_that("data frames, character labels and column order give the same answer",
                                  levels = levels(d$truth),
                                  n_boot = 50, seed = 3)
 
-  expect_equal(as_df$replicates, ref$replicates)
-  expect_equal(as_chr$replicates, ref$replicates)
+  expect_equal(as_df$bootstrap_values, ref$bootstrap_values)
+  expect_equal(as_chr$bootstrap_values, ref$bootstrap_values)
   expect_equal(shuffled$auc2, ref$auc2)
-  expect_equal(shuffled$replicates, ref$replicates)
-  expect_identical(given_levels$replicates, ref$replicates)
+  expect_equal(shuffled$bootstrap_values, ref$bootstrap_values)
+  expect_identical(given_levels$bootstrap_values, ref$bootstrap_values)
 })
 
 test_that("mc_roc objects can be passed in place of truth and probabilities", {
@@ -202,7 +217,7 @@ test_that("mc_roc objects can be passed in place of truth and probabilities", {
   for (res in list(two_fits, fit_matrix, named_arg, fit_second)) {
     expect_equal(res$auc1, ref$auc1)
     expect_equal(res$auc2, ref$auc2)
-    expect_identical(res$replicates, ref$replicates)
+    expect_identical(res$bootstrap_values, ref$bootstrap_values)
   }
   expect_equal(two_fits$auc1, fit_strong$auc)
   expect_equal(two_fits$auc2, fit_weak$auc)
@@ -292,8 +307,9 @@ test_that("failed replicates are counted and warned about", {
     "bootstrap replicates failed"
   )
   expect_gt(res$n_failed, 0)
-  expect_equal(res$n_boot + res$n_failed, 40)
-  expect_length(res$replicates, res$n_boot)
+  expect_equal(res$n_boot, 40)
+  expect_equal(res$n_successful + res$n_failed, 40)
+  expect_length(res$bootstrap_values, res$n_successful)
 })
 
 test_that("it stops when almost every replicate fails", {
