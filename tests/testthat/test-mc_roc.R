@@ -130,7 +130,7 @@ test_that("mc_refit() rebuilds after handle_missing(), keeping missing_info", {
   fit$boot <- list(lower_ci = 0.1, upper_ci = 0.2, conf_level = 0.95)
 
   cleaned <- suppressWarnings(handle_missing(fit, method = "mean"))
-  expect_identical(cleaned$auc, fit$auc)          # stale until refitted
+  expect_equal(cleaned$auc, hand_till(cleaned$truth, cleaned$probs))
   refit <- mc_refit(cleaned)
 
   expect_equal(refit$n, 300L)
