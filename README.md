@@ -293,6 +293,39 @@ outlier_result <- profile_outliers(
 
 The function supports configurable IQR thresholds and optional custom probability limits.
 
+### Individual AUC Influence
+
+The `profile_auc_influence()` function evaluates how flagged observations individually affect multiclass AUC. It temporarily excludes one flagged observation at a time, recalculates AUC, and ranks observations by the absolute change in AUC.
+
+```r
+influence <- profile_auc_influence(
+  truth = truth_test,
+  probs = probs1
+)
+
+head(influence)
+```
+
+The analysis helps identify which unusual observations have the greatest influence on model performance without permanently changing the original data.
+
+### Combined AUC Influence
+
+The `profile_auc_combinations()` function examines the joint influence of the most influential observations on multiclass AUC. It evaluates all non-empty subsets of the selected top-n observations.
+
+```r
+combinations <- profile_auc_combinations(
+  truth = truth_test,
+  probs = probs1,
+  top_n = 5
+)
+
+print(combinations)
+```
+
+The `top_n` parameter is configurable. With the default of 5 selected observations, the function can evaluate up to 31 non-empty combinations. A configurable warning threshold helps users identify potentially expensive searches.
+
+These functions provide sensitivity analysis rather than automatically recommending that observations be removed.
+
 ## AUC Confidence Intervals
 
 The `mc_auc_ci()` function estimates uncertainty in AUC using stratified bootstrap resampling.
